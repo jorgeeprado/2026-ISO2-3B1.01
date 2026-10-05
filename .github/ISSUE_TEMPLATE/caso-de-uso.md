@@ -1,1 +1,1 @@
-## D-001 · Agente para implementar Fecha: 13/10 · It. 0 · Acta 13/10 Contexto: necesitamos un agente para implementar y probar. Decisión: VS Code + Copilot. Alternativas: OpenCode (menos soporte). Motivo: licencia UCLM gratis. Consecuencias: coste 0 €.
+--name: Caso de uso about: Una iteración = un caso de uso title: "CUxx –Nombre (módulo vX.Y.Z)"--## Caso de uso CU · RF · Fase · Módulo Acta (enlace a la wiki) ## Disciplinas RADIT-[ ] Requisitos … -[ ] Pruebas ## Contratos e interfaces ## Criterios de aceptación ## Decisiones (DECISIONS.md)
