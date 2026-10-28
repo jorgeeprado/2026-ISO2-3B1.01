@@ -41,3 +41,4 @@ public interface IUsuariosSeguridadService {
      */
     boolean verificarPermiso(String usuarioId, String accionRequerida);
 }
+

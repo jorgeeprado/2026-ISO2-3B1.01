@@ -11,3 +11,4 @@ class ModuloCatalogoTest {
         assertNotNull(ModalidadPrueba.RM);
     }
 }
+

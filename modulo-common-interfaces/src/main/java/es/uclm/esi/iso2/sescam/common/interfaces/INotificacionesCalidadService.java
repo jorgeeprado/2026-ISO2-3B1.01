@@ -36,3 +36,4 @@ public interface INotificacionesCalidadService {
      */
     IncidenciaDTO registrarIncidenciaOEncuesta(IncidenciaDTO incidencia);
 }
+

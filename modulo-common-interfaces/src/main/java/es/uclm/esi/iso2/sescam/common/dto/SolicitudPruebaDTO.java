@@ -75,3 +75,4 @@ public class SolicitudPruebaDTO implements Serializable {
     public Integer getPeriodicidadMeses() { return periodicidadMeses; }
     public void setPeriodicidadMeses(Integer periodicidadMeses) { this.periodicidadMeses = periodicidadMeses; }
 }
+

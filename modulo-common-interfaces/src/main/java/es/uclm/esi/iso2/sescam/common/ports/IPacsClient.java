@@ -16,3 +16,4 @@ public interface IPacsClient {
      */
     byte[] recuperarSerieDicom(String studyInstanceUID);
 }
+

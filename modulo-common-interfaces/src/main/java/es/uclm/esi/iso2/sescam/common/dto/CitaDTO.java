@@ -68,3 +68,4 @@ public class CitaDTO implements Serializable {
     public String getMotivoCancelacion() { return motivoCancelacion; }
     public void setMotivoCancelacion(String motivoCancelacion) { this.motivoCancelacion = motivoCancelacion; }
 }
+

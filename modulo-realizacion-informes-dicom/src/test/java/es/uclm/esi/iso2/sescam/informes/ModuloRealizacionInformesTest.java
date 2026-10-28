@@ -11,3 +11,4 @@ class ModuloRealizacionInformesTest {
         assertNotNull(EstadoInforme.FIRMADO);
     }
 }
+

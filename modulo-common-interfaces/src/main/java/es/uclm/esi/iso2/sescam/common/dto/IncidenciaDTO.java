@@ -52,3 +52,4 @@ public class IncidenciaDTO implements Serializable {
     public LocalDateTime getFechaRegistro() { return fechaRegistro; }
     public void setFechaRegistro(LocalDateTime fechaRegistro) { this.fechaRegistro = fechaRegistro; }
 }
+

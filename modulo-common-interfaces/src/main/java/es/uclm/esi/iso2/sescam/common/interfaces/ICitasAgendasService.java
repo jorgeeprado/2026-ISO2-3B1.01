@@ -56,3 +56,4 @@ public interface ICitasAgendasService {
      */
     List<CitaDTO> reasignarHuecosLiberados(String salaId, LocalDateTime fecha);
 }
+

@@ -10,3 +10,4 @@ public enum ModalidadPrueba {
     TAC,            // Tomografía Computarizada
     RM              // Resonancia Magnética
 }
+

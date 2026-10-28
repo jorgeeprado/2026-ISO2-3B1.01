@@ -57,3 +57,4 @@ public class NotificacionDTO implements Serializable {
     public String getReferenciaEntidadId() { return referenciaEntidadId; }
     public void setReferenciaEntidadId(String referenciaEntidadId) { this.referenciaEntidadId = referenciaEntidadId; }
 }
+

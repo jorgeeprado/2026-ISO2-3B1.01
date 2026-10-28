@@ -99,3 +99,4 @@ El Servicio de Salud de Castilla-La Mancha (SESCAM) requiere un sistema integral
 - **RNF-09 (Modularidad SOLID y Maven):** Arquitectura Maven multimódulo (8 submódulos); 0 dependencias entre módulos de negocio; comunicación 100% vía interfaces versionadas con SemVer.
 - **RNF-10 (Testabilidad y Gestión de Configuración):** Cobertura de pruebas unitarias/integración $\ge 80\%$, ejecución aislada con Mocks/Stubs; Git Flow estricto con 0 commits directos a `main` e integración vía Pull Request trazada a Issues.
 - **RNF-11 (Portabilidad Multiplataforma):** Backend desacoplado en Java 17 que da soporte a clientes de escritorio, web responsiva y móvil.
+

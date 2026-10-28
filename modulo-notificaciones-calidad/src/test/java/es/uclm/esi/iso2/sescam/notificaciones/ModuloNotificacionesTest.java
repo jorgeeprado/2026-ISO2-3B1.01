@@ -11,3 +11,4 @@ class ModuloNotificacionesTest {
         assertNotNull(TipoNotificacion.ALERTA_HALLAZGO_CRITICO);
     }
 }
+

@@ -26,3 +26,4 @@ public interface IAnaliticaEstadisticasService {
      */
     Map<String, Object> generarCuadroMandoGlobal();
 }
+

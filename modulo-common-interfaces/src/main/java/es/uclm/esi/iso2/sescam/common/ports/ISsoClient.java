@@ -12,3 +12,4 @@ public interface ISsoClient {
      */
     UsuarioDTO validarTokenFederado(String token);
 }
+

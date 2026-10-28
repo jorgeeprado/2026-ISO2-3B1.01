@@ -56,3 +56,4 @@ public class AuditoriaAccesoDTO implements Serializable {
     public String getIpOrigen() { return ipOrigen; }
     public void setIpOrigen(String ipOrigen) { this.ipOrigen = ipOrigen; }
 }
+

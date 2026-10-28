@@ -10,3 +10,4 @@ public enum EstadoSolicitud {
     COMPLETADA,
     CANCELADA
 }
+

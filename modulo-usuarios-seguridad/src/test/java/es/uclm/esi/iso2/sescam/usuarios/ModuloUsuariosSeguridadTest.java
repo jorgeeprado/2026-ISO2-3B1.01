@@ -11,3 +11,4 @@ class ModuloUsuariosSeguridadTest {
         assertNotNull(RolUsuario.ADMIN_SISTEMA);
     }
 }
+

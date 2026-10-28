@@ -28,3 +28,4 @@ class ModuloCommonInterfacesTest {
         assertNotNull(RolUsuario.valueOf("MEDICO"));
     }
 }
+

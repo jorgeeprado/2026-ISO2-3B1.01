@@ -84,3 +84,4 @@ public class InformeRadiologicoDTO implements Serializable {
     public String getFirmaDigitalHash() { return firmaDigitalHash; }
     public void setFirmaDigitalHash(String firmaDigitalHash) { this.firmaDigitalHash = firmaDigitalHash; }
 }
+

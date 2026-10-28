@@ -58,3 +58,4 @@ public class EstadisticaOperativaDTO implements Serializable {
     public int getSolicitudesPendientesEnListaEspera() { return solicitudesPendientesEnListaEspera; }
     public void setSolicitudesPendientesEnListaEspera(int solicitudesPendientesEnListaEspera) { this.solicitudesPendientesEnListaEspera = solicitudesPendientesEnListaEspera; }
 }
+

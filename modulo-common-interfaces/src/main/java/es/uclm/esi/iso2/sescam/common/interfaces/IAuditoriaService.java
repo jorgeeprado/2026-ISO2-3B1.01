@@ -22,3 +22,4 @@ public interface IAuditoriaService {
      */
     List<AuditoriaAccesoDTO> consultarAuditorias(LocalDateTime desde, LocalDateTime hasta, String pacienteId);
 }
+

@@ -108,3 +108,4 @@
 | Iteración | Alcance | Responsable | Versión Módulo | Coste Asignado |
 | :---: | :--- | :--- | :---: | :---: |
 | **Iteración N** | Integración global, pruebas E2E con Mockito, manual de usuario y despliegue | Todos (Coordina Jorge / Kevin) | v1.0.0 | 2.000,00 € |
+

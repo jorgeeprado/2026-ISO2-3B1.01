@@ -10,3 +10,4 @@ public enum TipoIncidencia {
     REACCION_ADVERSA_CONTRASTE,
     RECLAMACION_PACIENTE
 }
+

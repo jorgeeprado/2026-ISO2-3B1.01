@@ -12,3 +12,4 @@ public interface ISisAdmisionClient {
      */
     PacienteDTO sincronizarCensoPaciente(String cip);
 }
+

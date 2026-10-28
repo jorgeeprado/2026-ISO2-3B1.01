@@ -63,3 +63,4 @@ public class RegistroRealizacionDTO implements Serializable {
     public boolean isConsentimientoPrevioValidado() { return consentimientoPrevioValidado; }
     public void setConsentimientoPrevioValidado(boolean consentimientoPrevioValidado) { this.consentimientoPrevioValidado = consentimientoPrevioValidado; }
 }
+

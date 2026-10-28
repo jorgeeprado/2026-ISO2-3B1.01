@@ -9,3 +9,4 @@ public enum EstadoInforme {
     FIRMADO,
     ENMENDADO
 }
+

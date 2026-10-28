@@ -49,3 +49,4 @@ public interface IRealizacionInformesService {
      */
     boolean validarConsentimientoPrevio(String pacienteId, String tipoPruebaId);
 }
+

@@ -18,3 +18,4 @@ public interface IHceClient {
      */
     String consultarAntecedentesAlergiasHce(String cipPaciente);
 }
+

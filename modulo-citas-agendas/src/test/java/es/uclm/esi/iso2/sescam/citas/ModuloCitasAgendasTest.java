@@ -11,3 +11,4 @@ class ModuloCitasAgendasTest {
         assertNotNull(EstadoCita.PROGRAMADA);
     }
 }
+

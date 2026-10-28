@@ -11,3 +11,4 @@ class ModuloPrescripcionTest {
         assertNotNull(EstadoSolicitud.PENDIENTE_CITACION);
     }
 }
+

@@ -10,3 +10,4 @@ public enum RolUsuario {
     ADMINISTRATIVO_ADMISION,
     ADMIN_SISTEMA
 }
+

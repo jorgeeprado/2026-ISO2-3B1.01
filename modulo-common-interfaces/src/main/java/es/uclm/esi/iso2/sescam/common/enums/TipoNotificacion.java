@@ -11,3 +11,4 @@ public enum TipoNotificacion {
     CANCELACION_CITA,
     REPROGRAMACION_CITA
 }
+

@@ -40,3 +40,4 @@ public interface IPrescripcionService {
      */
     SolicitudPruebaDTO autogenerarSiguienteCicloSeguimiento(String solicitudOriginalId);
 }
+

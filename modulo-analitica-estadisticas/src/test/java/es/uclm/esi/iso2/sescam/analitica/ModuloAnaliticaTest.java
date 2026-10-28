@@ -15,3 +15,4 @@ class ModuloAnaliticaTest {
         assertEquals(85.0, dto.getPorcentajeOcupacionAgendas());
     }
 }
+

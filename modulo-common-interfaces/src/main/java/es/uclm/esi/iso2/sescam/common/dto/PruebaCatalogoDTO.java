@@ -68,3 +68,4 @@ public class PruebaCatalogoDTO implements Serializable {
     public boolean isActiva() { return activa; }
     public void setActiva(boolean activa) { this.activa = activa; }
 }
+

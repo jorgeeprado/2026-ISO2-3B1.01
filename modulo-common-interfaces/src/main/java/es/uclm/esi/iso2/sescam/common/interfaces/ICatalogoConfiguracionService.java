@@ -30,3 +30,4 @@ public interface ICatalogoConfiguracionService {
      */
     boolean desactivarTipoPrueba(String tipoPruebaId);
 }
+
