@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>es.uclm.esi.iso2</groupId>
+    <artifactId>sescam-radiodiagnostico-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>SESCAM :: Sistema Integral de Radiodiagnóstico e Imagen Médica (Parent)</name>
+    <description>Proyecto Multimódulo de Ingeniería del Software II (Curso 2026/27) - Grupo 3B1.01</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.jupiter.version>5.10.2</junit.jupiter.version>
+        <mockito.version>5.11.0</mockito.version>
+        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+    </properties>
+
+    <modules>
+        <!-- Módulo transversal de Contratos, DTOs y Servicios compartidos -->
+        <module>modulo-common-interfaces</module>
+
+        <!-- Módulos de negocio (desacoplados, dependen únicamente de common-interfaces) -->
+        <module>modulo-citas-agendas</module>
+        <module>modulo-prescripcion-seguimiento</module>
+        <module>modulo-realizacion-informes-dicom</module>
+        <module>modulo-notificaciones-calidad</module>
+        <module>modulo-usuarios-seguridad</module>
+        <module>modulo-catalogo-configuracion</module>
+        <module>modulo-analitica-estadisticas</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Dependencia del módulo transversal común -->
+            <dependency>
+                <groupId>es.uclm.esi.iso2</groupId>
+                <artifactId>modulo-common-interfaces</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Testing framework JUnit 5 (Jupiter) -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Mocking framework para tests aislados por módulo (RNF-10) -->
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

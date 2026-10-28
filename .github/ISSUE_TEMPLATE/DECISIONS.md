@@ -1,1 +1,0 @@
-## D-001 · Agente para implementar Fecha: 13/10 · It. 0 · Acta 13/10 Contexto: necesitamos un agente para implementar y probar. Decisión: VS Code + Copilot. Alternativas: OpenCode (menos soporte). Motivo: licencia UCLM gratis. Consecuencias: coste 0 €.
