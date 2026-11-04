@@ -20,15 +20,18 @@ class RealizacionInformesServiceTest {
     @Mock
     private ConsentimientoService consentimientoServiceMock;
 
+    @Mock
+    private RealizacionPruebasServiceImpl realizacionPruebasServiceMock;
+
     private RealizacionInformesService service;
 
     @BeforeEach
     void setUp() {
-        service = new RealizacionInformesService(consentimientoServiceMock);
+        service = new RealizacionInformesService(consentimientoServiceMock, realizacionPruebasServiceMock);
     }
 
     @Test
-    @DisplayName("Debe delegar la firma de consentimiento en ConsentimientoService")
+    @DisplayName("Debe delegar la firma de consentimiento en ConsentimientoService (CU-22)")
     void testFirmarConsentimientoInformadoDelega() {
         ConsentimientoDTO dto = new ConsentimientoDTO();
         when(consentimientoServiceMock.firmarConsentimiento(dto)).thenReturn(dto);
@@ -40,7 +43,7 @@ class RealizacionInformesServiceTest {
     }
 
     @Test
-    @DisplayName("Debe delegar la validacion previa en ConsentimientoService")
+    @DisplayName("Debe delegar la validacion previa en ConsentimientoService (CU-22 / RN-04)")
     void testValidarConsentimientoPrevioDelega() {
         when(consentimientoServiceMock.validarConsentimientoPrevio("P1", "T1")).thenReturn(true);
 
@@ -51,13 +54,30 @@ class RealizacionInformesServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar UnsupportedOperationException para casos de uso de iteraciones posteriores")
+    @DisplayName("Debe delegar el registro de realizacion de prueba en RealizacionPruebasServiceImpl (CU-10)")
+    void testRegistrarRealizacionPruebaDelega() {
+        RegistroRealizacionDTO dto = new RegistroRealizacionDTO();
+        when(realizacionPruebasServiceMock.registrarRealizacionPrueba(dto)).thenReturn(dto);
+
+        RegistroRealizacionDTO result = service.registrarRealizacionPrueba(dto);
+
+        assertSame(dto, result);
+        verify(realizacionPruebasServiceMock, times(1)).registrarRealizacionPrueba(dto);
+    }
+
+    @Test
+    @DisplayName("Debe lanzar excepción si realizacionPruebasService no fue inyectado")
+    void testRegistrarSinServicioInyectado() {
+        RealizacionInformesService s2 = new RealizacionInformesService(consentimientoServiceMock);
+        assertThrows(UnsupportedOperationException.class, () -> s2.registrarRealizacionPrueba(new RegistroRealizacionDTO()));
+    }
+
+    @Test
+    @DisplayName("Debe lanzar UnsupportedOperationException para casos de uso de iteraciones posteriores (CU-09, CU-03)")
     void testMetodosFuturosNoSoportadosAun() {
         assertThrows(UnsupportedOperationException.class, () -> service.consultarHistorialPruebas("P1"));
         assertThrows(UnsupportedOperationException.class, () -> service.crearInforme(new InformeRadiologicoDTO()));
         assertThrows(UnsupportedOperationException.class, () -> service.consultarInforme("INF-1"));
         assertThrows(UnsupportedOperationException.class, () -> service.firmarInformeDigitalmente("INF-1", "MED-1", "H1"));
-        assertThrows(UnsupportedOperationException.class, () -> service.registrarRealizacionPrueba(new RegistroRealizacionDTO()));
     }
 }
-
