@@ -80,3 +80,12 @@
 - **Decisión:** La ejecución técnica de pruebas en `IRealizacionInformesService` (`CU-10`) incluye obligatoriamente (`<<include>>`) la verificación del cuestionario de seguridad y consentimiento firmado (`CU-22`).
 - **Motivo / Justificación:** Bloqueo sistemático a nivel de capa de dominio si `consentimientoPrevioValidado == false`.
 - **Consecuencias:** Evita negligencias médicas y cumple los estándares de seguridad asistencial hospitalaria.
+
+---
+
+### D-009 · Despacho desacoplado y estados de notificación (CU-02.1)
+- **Fecha:** 07/11/2026 · **Iteración:** 14 · **Responsable:** Marcos Díaz-Pavón Romero
+- **Contexto:** Los recordatorios e informes deben despacharse por más de un canal sin dependencias directas de los módulos de citación o informes.
+- **Decisión:** `NotificacionesCalidadService` recibe canales mediante `ICanalNotificacion`, trabaja únicamente con IDs y DTOs comunes y registra los estados `PENDIENTE`, `ENVIADA`, `PARCIAL` o `FALLIDA`. Se intentan todos los canales configurados; cualquier fallo se persiste y se propaga como `NotificacionDispatchException`.
+- **Motivo / Justificación:** Inversión de dependencias y trazabilidad explícita de entregas parciales o fallidas.
+- **Consecuencias:** El repositorio en memoria sirve como adaptador inicial; los canales reales y una persistencia duradera requieren adaptadores de infraestructura posteriores.
