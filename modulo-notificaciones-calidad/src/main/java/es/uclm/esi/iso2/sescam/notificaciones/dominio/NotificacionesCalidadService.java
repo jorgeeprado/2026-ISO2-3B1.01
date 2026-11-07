@@ -1,6 +1,7 @@
 package es.uclm.esi.iso2.sescam.notificaciones.dominio;
 
 import es.uclm.esi.iso2.sescam.common.dto.IncidenciaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.FiltroNotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.dto.NotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.enums.TipoNotificacion;
 import es.uclm.esi.iso2.sescam.common.interfaces.INotificacionesCalidadService;
@@ -10,7 +11,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
+@Service
 public class NotificacionesCalidadService implements INotificacionesCalidadService {
 
     private final INotificacionRepository repository;
@@ -21,9 +26,25 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
             INotificacionRepository repository,
             List<ICanalNotificacion> canales,
             Clock clock) {
+        this(repository, canales, clock, false);
+    }
+
+    @Autowired
+    public NotificacionesCalidadService(
+            INotificacionRepository repository,
+            ObjectProvider<ICanalNotificacion> canales,
+            Clock clock) {
+        this(repository, canales.orderedStream().toList(), clock, true);
+    }
+
+    private NotificacionesCalidadService(
+            INotificacionRepository repository,
+            List<ICanalNotificacion> canales,
+            Clock clock,
+            boolean permitirSinCanales) {
         this.repository = Objects.requireNonNull(repository, "El repositorio no puede ser nulo");
         this.canales = List.copyOf(Objects.requireNonNull(canales, "Los canales no pueden ser nulos"));
-        if (this.canales.isEmpty()) {
+        if (this.canales.isEmpty() && !permitirSinCanales) {
             throw new IllegalArgumentException("Debe configurarse al menos un canal de notificación");
         }
         this.clock = Objects.requireNonNull(clock, "El reloj no puede ser nulo");
@@ -69,6 +90,22 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
     }
 
     @Override
+    public List<NotificacionDTO> consultarNotificacionesPorUsuario(FiltroNotificacionDTO filtro) {
+        validarFiltro(filtro);
+        return repository.buscar(filtro).stream()
+                .map(Notificacion::getDto)
+                .toList();
+    }
+
+    @Override
+    public NotificacionDTO marcarComoLeida(Long notificacionId) {
+        if (notificacionId == null || notificacionId <= 0) {
+            throw new IllegalArgumentException("El id numérico de notificación debe ser positivo");
+        }
+        return repository.marcarComoLeida(notificacionId).getDto();
+    }
+
+    @Override
     public IncidenciaDTO registrarIncidenciaOEncuesta(IncidenciaDTO incidencia) {
         throw new UnsupportedOperationException("CU-04 está planificado para una iteración posterior.");
     }
@@ -79,6 +116,9 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
             String titulo,
             String mensaje,
             String referenciaId) {
+        if (canales.isEmpty()) {
+            throw new IllegalStateException("No hay canales de notificación configurados");
+        }
         NotificacionDTO dto = new NotificacionDTO(
                 UUID.randomUUID().toString(),
                 destinatarioId,
@@ -88,7 +128,8 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
                 LocalDateTime.now(clock),
                 false,
                 referenciaId);
-        repository.guardar(new Notificacion(dto, EstadoEnvio.PENDIENTE, 0, 0));
+        Notificacion guardada = repository.guardar(new Notificacion(dto, EstadoEnvio.PENDIENTE, 0, 0));
+        dto.setNotificacionId(guardada.getNotificacionId());
 
         int enviados = 0;
         int fallidos = 0;
@@ -121,9 +162,19 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
         }
     }
 
+    private static void validarFiltro(FiltroNotificacionDTO filtro) {
+        Objects.requireNonNull(filtro, "El filtro no puede ser nulo");
+        validarIdentificador(filtro.getUsuarioId(), "usuarioId");
+        if (filtro.getFechaDesde() != null && filtro.getFechaHasta() != null
+                && filtro.getFechaDesde().isAfter(filtro.getFechaHasta())) {
+            throw new IllegalArgumentException("La fecha desde no puede ser posterior a la fecha hasta");
+        }
+    }
+
     private static NotificacionDTO copiar(NotificacionDTO origen) {
         return new NotificacionDTO(
                 origen.getId(),
+                origen.getNotificacionId(),
                 origen.getDestinatarioId(),
                 origen.getTipo(),
                 origen.getTitulo(),
