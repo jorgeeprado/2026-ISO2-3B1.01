@@ -11,6 +11,7 @@ public class NotificacionDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String id;
+    private Long notificacionId;
     private String destinatarioId;
     private TipoNotificacion tipo;
     private String titulo;
@@ -23,7 +24,13 @@ public class NotificacionDTO implements Serializable {
 
     public NotificacionDTO(String id, String destinatarioId, TipoNotificacion tipo, String titulo,
                            String mensaje, LocalDateTime fechaEmision, boolean leida, String referenciaEntidadId) {
+        this(id, null, destinatarioId, tipo, titulo, mensaje, fechaEmision, leida, referenciaEntidadId);
+    }
+
+    public NotificacionDTO(String id, Long notificacionId, String destinatarioId, TipoNotificacion tipo, String titulo,
+                           String mensaje, LocalDateTime fechaEmision, boolean leida, String referenciaEntidadId) {
         this.id = id;
+        this.notificacionId = notificacionId;
         this.destinatarioId = destinatarioId;
         this.tipo = tipo;
         this.titulo = titulo;
@@ -35,6 +42,9 @@ public class NotificacionDTO implements Serializable {
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+
+    public Long getNotificacionId() { return notificacionId; }
+    public void setNotificacionId(Long notificacionId) { this.notificacionId = notificacionId; }
 
     public String getDestinatarioId() { return destinatarioId; }
     public void setDestinatarioId(String destinatarioId) { this.destinatarioId = destinatarioId; }
@@ -57,4 +67,3 @@ public class NotificacionDTO implements Serializable {
     public String getReferenciaEntidadId() { return referenciaEntidadId; }
     public void setReferenciaEntidadId(String referenciaEntidadId) { this.referenciaEntidadId = referenciaEntidadId; }
 }
-

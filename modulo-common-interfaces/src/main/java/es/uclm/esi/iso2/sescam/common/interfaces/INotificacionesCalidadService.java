@@ -1,6 +1,7 @@
 package es.uclm.esi.iso2.sescam.common.interfaces;
 
 import es.uclm.esi.iso2.sescam.common.dto.IncidenciaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.FiltroNotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.dto.NotificacionDTO;
 import java.util.List;
 
@@ -32,8 +33,17 @@ public interface INotificacionesCalidadService {
     List<NotificacionDTO> consultarNotificaciones(String usuarioId);
 
     /**
+     * Consulta las notificaciones de un usuario aplicando los criterios opcionales indicados.
+     */
+    List<NotificacionDTO> consultarNotificacionesPorUsuario(FiltroNotificacionDTO filtro);
+
+    /**
+     * Marca como leída una notificación mediante su identificador numérico.
+     */
+    NotificacionDTO marcarComoLeida(Long notificacionId);
+
+    /**
      * Registra una incidencia asistencial o una encuesta de satisfacción cumplimentada (CU-04 / RF-04).
      */
     IncidenciaDTO registrarIncidenciaOEncuesta(IncidenciaDTO incidencia);
 }
-
