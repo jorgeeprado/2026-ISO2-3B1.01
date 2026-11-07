@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 import es.uclm.esi.iso2.sescam.common.dto.NotificacionDTO;
+import es.uclm.esi.iso2.sescam.common.dto.FiltroNotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.enums.TipoNotificacion;
 import es.uclm.esi.iso2.sescam.common.interfaces.INotificacionesCalidadService;
 import java.util.List;
@@ -53,6 +55,32 @@ class NotificacionControllerTest {
 
         assertEquals(esperado, controller.consultarNotificaciones("paciente-1"));
         verify(service).consultarNotificaciones("paciente-1");
+    }
+
+    @Test
+    void consultaNotificacionesConFiltrosDelegandoEnElServicio() {
+        java.time.LocalDateTime desde = java.time.LocalDateTime.parse("2026-11-01T00:00:00");
+        java.time.LocalDateTime hasta = java.time.LocalDateTime.parse("2026-11-07T23:59:59");
+        List<NotificacionDTO> esperado = List.of(crearDto("cita-1", TipoNotificacion.RECORDATORIO_CITA));
+        when(service.consultarNotificacionesPorUsuario(any(FiltroNotificacionDTO.class))).thenReturn(esperado);
+
+        assertEquals(esperado, controller.consultarNotificacionesPorUsuario("paciente-1", false, desde, hasta));
+        org.mockito.ArgumentCaptor<FiltroNotificacionDTO> filtroCaptor =
+                org.mockito.ArgumentCaptor.forClass(FiltroNotificacionDTO.class);
+        verify(service).consultarNotificacionesPorUsuario(filtroCaptor.capture());
+        assertEquals("paciente-1", filtroCaptor.getValue().getUsuarioId());
+        assertEquals(false, filtroCaptor.getValue().getLeida());
+        assertEquals(desde, filtroCaptor.getValue().getFechaDesde());
+        assertEquals(hasta, filtroCaptor.getValue().getFechaHasta());
+    }
+
+    @Test
+    void marcaComoLeidaDelegandoEnElServicio() {
+        NotificacionDTO esperado = crearDto("cita-1", TipoNotificacion.RECORDATORIO_CITA);
+        when(service.marcarComoLeida(12L)).thenReturn(esperado);
+
+        assertEquals(esperado, controller.marcarComoLeida(12L));
+        verify(service).marcarComoLeida(12L);
     }
 
     @Test

@@ -89,3 +89,10 @@
 - **Decisión:** `NotificacionesCalidadService` recibe canales mediante `ICanalNotificacion`, trabaja únicamente con IDs y DTOs comunes y registra los estados `PENDIENTE`, `ENVIADA`, `PARCIAL` o `FALLIDA`. Se intentan todos los canales configurados; cualquier fallo se persiste y se propaga como `NotificacionDispatchException`.
 - **Motivo / Justificación:** Inversión de dependencias y trazabilidad explícita de entregas parciales o fallidas.
 - **Consecuencias:** El repositorio en memoria sirve como adaptador inicial; los canales reales y una persistencia duradera requieren adaptadores de infraestructura posteriores.
+
+### D-010 · Consulta y persistencia de notificaciones (CU-02.2)
+- **Fecha:** 07/11/2026 · **Iteración:** 15
+- **Contexto:** CU-02.2 requiere consulta REST filtrada por usuario, fecha y estado de lectura, además de persistir el marcado como leído.
+- **Decisión:** El módulo expone la API con Spring Web y usa Spring Data JPA como adaptador de persistencia. H2 se limita a las pruebas; la aplicación integradora configura su datasource. `INotificacionRepository` conserva la abstracción de dominio y el adaptador en memoria se mantiene para pruebas unitarias. El identificador numérico de persistencia se expone aparte del identificador público `String` ya existente.
+- **Motivo / Justificación:** Cumplir el contrato de CU-02.2 sin romper la compatibilidad del DTO utilizado por CU-02.1.
+- **Consecuencias:** La aplicación integradora debe configurar el datasource de producción y al menos un canal de notificación para habilitar el envío; sin canales, las consultas siguen disponibles y los envíos fallan explícitamente.

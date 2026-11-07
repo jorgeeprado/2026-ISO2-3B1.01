@@ -26,7 +26,10 @@ class NotificacionRepositoryInMemoryTest {
         Notificacion primera = crear("n-1", "paciente-1", LocalDateTime.parse("2026-11-07T10:00:00"));
         repository.guardar(primera);
 
-        assertEquals(primera, repository.buscarPorDestinatario("paciente-1").get(0));
+        assertEquals(primera.getDto().getId(),
+                repository.buscarPorDestinatario("paciente-1").get(0).getDto().getId());
+        assertEquals(2L,
+                repository.buscarPorDestinatario("paciente-1").get(0).getDto().getNotificacionId());
         assertEquals(2, repository.buscarPorDestinatario("paciente-1").size());
         assertEquals(0, repository.buscarPorDestinatario("otro-paciente").size());
     }
