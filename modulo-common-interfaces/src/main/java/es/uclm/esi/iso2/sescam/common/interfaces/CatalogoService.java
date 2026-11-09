@@ -1,6 +1,6 @@
-package es.uclm.esi.iso2.sescam.common.interfaces.services;
+package es.uclm.esi.iso2.sescam.common.interfaces;
 
-import es.uclm.esi.iso2.sescam.common.interfaces.dto.PruebaDiagnosticaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.PruebaDiagnosticaDTO;
 import java.util.List;
 
 public interface CatalogoService {

@@ -1,4 +1,4 @@
-package es.uclm.esi.iso2.sescam.common.interfaces.dto;
+package es.uclm.esi.iso2.sescam.common.dto;
 
 public record PruebaDiagnosticaDTO(
     String idPrueba,

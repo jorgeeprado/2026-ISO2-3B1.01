@@ -1,4 +1,4 @@
-package es.uclm.esi.iso2.sescam.common.interfaces.dto;
+package es.uclm.esi.iso2.sescam.common.dto;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
