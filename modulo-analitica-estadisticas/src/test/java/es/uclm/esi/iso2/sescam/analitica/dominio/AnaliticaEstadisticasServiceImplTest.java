@@ -1,6 +1,7 @@
 package es.uclm.esi.iso2.sescam.analitica.dominio;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -8,10 +9,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import es.uclm.esi.iso2.sescam.analitica.persistencia.IEstadisticasRepositorio;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.CitaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.EstadisticaOperativaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.PruebaCatalogoDTO;
 import es.uclm.esi.iso2.sescam.common.dto.SolicitudPruebaDTO;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoSolicitud;
+import es.uclm.esi.iso2.sescam.common.enums.EstadoCita;
 import es.uclm.esi.iso2.sescam.common.enums.ModalidadPrueba;
 import es.uclm.esi.iso2.sescam.common.enums.Prioridad;
 import es.uclm.esi.iso2.sescam.common.interfaces.ICatalogoConfiguracionService;
@@ -19,7 +23,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -169,23 +175,99 @@ class AnaliticaEstadisticasServiceImplTest {
     }
 
     @Test
-    void agregaEstadisticasOperativasConMediaPonderadaYValidaIntervalo() {
+    void calculaOcupacionDemoraCancelacionesYListaDeEsperaEnElPeriodo() {
         LocalDate inicio = LocalDate.of(2026, 11, 1);
         LocalDate fin = LocalDate.of(2026, 11, 30);
-        when(repositorio.buscarEstadisticasOperativas(inicio, fin)).thenReturn(List.of(
-                new EstadisticaOperativaDTO(inicio, inicio.plusDays(2), 10, 8, 1, 2.0, 80.0, 3),
-                new EstadisticaOperativaDTO(inicio.plusDays(3), fin, 30, 25, 2, 4.0, 90.0, 5)));
+        SolicitudPruebaDTO primera = solicitud("s1", "RX", Prioridad.ORDINARIO,
+                EstadoSolicitud.CITADA, inicio.atTime(8, 0), false);
+        SolicitudPruebaDTO segunda = solicitud("s2", "RX", Prioridad.ORDINARIO,
+                EstadoSolicitud.CITADA, inicio.plusDays(1).atTime(10, 0), false);
+        when(repositorio.buscarCitasEnPeriodo(inicio, fin)).thenReturn(List.of(
+                cita("c1", "s1", inicio.plusDays(2).atTime(8, 0), EstadoCita.REALIZADA),
+                cita("c2", "s2", inicio.plusDays(5).atTime(10, 0), EstadoCita.CONFIRMADA),
+                cita("c3", "s1", inicio.plusDays(6).atTime(9, 0), EstadoCita.CANCELADA)));
+        when(repositorio.buscarAgendasEnPeriodo(inicio, fin)).thenReturn(List.of(
+                agenda("a1", inicio.plusDays(2), LocalTime.of(8, 0), LocalTime.of(10, 0), 60),
+                agenda("a2", inicio.plusDays(5), LocalTime.of(8, 0), LocalTime.of(10, 0), 60)));
+        when(repositorio.buscarSolicitudesEnPeriodo(inicio, fin)).thenReturn(List.of(
+                primera, segunda,
+                solicitud("s3", "RX", Prioridad.URGENTE, EstadoSolicitud.PENDIENTE_CITACION,
+                        inicio.plusDays(3).atStartOfDay(), false)));
+        when(repositorio.buscarSolicitudPorId("s1")).thenReturn(primera);
+        when(repositorio.buscarSolicitudPorId("s2")).thenReturn(segunda);
 
         EstadisticaOperativaDTO resultado = service.generarInformeOperativoAgendas(inicio, fin);
 
-        assertEquals(40, resultado.getTotalCitasProgramadas());
-        assertEquals(33, resultado.getTotalCitasRealizadas());
-        assertEquals(3, resultado.getTotalCitasCanceladas());
-        assertEquals(3.5, resultado.getTiempoMedioEsperaDias(), 0.0001);
-        assertEquals(87.5, resultado.getPorcentajeOcupacionAgendas(), 0.0001);
-        assertEquals(8, resultado.getSolicitudesPendientesEnListaEspera());
+        assertEquals(3, resultado.getTotalCitasProgramadas());
+        assertEquals(1, resultado.getTotalCitasRealizadas());
+        assertEquals(1, resultado.getTotalCitasCanceladas());
+        assertEquals(3.0, resultado.getTiempoMedioEsperaDias(), 0.0001);
+        assertEquals(50.0, resultado.getPorcentajeOcupacionAgendas(), 0.0001);
+        assertEquals(100.0 / 3.0, resultado.getPorcentajeCancelaciones(), 0.0001);
+        assertEquals(1, resultado.getSolicitudesPendientesEnListaEspera());
+        verify(repositorio).guardarEstadisticaOperativa(resultado);
+    }
+
+    @Test
+    void devuelveMetricasCeroCuandoNoHayAgendaNiCitas() {
+        LocalDate inicio = LocalDate.of(2026, 11, 1);
+        LocalDate fin = LocalDate.of(2026, 11, 30);
+        when(repositorio.buscarCitasEnPeriodo(inicio, fin)).thenReturn(List.of());
+        when(repositorio.buscarAgendasEnPeriodo(inicio, fin)).thenReturn(List.of());
+        when(repositorio.buscarSolicitudesEnPeriodo(inicio, fin)).thenReturn(List.of());
+
+        EstadisticaOperativaDTO resultado = service.generarInformeOperativoAgendas(inicio, fin);
+
+        assertNotNull(resultado);
+        assertEquals(0.0, resultado.getPorcentajeOcupacionAgendas());
+        assertEquals(0.0, resultado.getTiempoMedioEsperaDias());
+        assertEquals(0.0, resultado.getPorcentajeCancelaciones());
+        assertEquals(0, resultado.getTotalCitasProgramadas());
+    }
+
+    @Test
+    void calculaCienPorCienDeOcupacionYDeCancelaciones() {
+        LocalDate inicio = LocalDate.of(2026, 11, 1);
+        LocalDate fin = inicio;
+        SolicitudPruebaDTO solicitudRealizada = solicitud("s1", "RX", Prioridad.URGENTE,
+                EstadoSolicitud.CITADA, inicio.minusDays(1).atStartOfDay(), false);
+        when(repositorio.buscarCitasEnPeriodo(inicio, fin)).thenReturn(
+                List.of(cita("c1", "s1", inicio.atTime(8, 0), EstadoCita.CONFIRMADA)),
+                List.of(cita("c2", "s1", inicio.atTime(8, 0), EstadoCita.CANCELADA)));
+        when(repositorio.buscarAgendasEnPeriodo(inicio, fin)).thenReturn(List.of(
+                agenda("a1", inicio, LocalTime.of(8, 0), LocalTime.of(9, 0), 60)));
+        when(repositorio.buscarSolicitudesEnPeriodo(inicio, fin)).thenReturn(List.of());
+        when(repositorio.buscarSolicitudPorId("s1")).thenReturn(solicitudRealizada);
+
+        EstadisticaOperativaDTO ocupacionTotal = service.generarInformeOperativoAgendas(inicio, fin);
+        assertEquals(100.0, ocupacionTotal.getPorcentajeOcupacionAgendas(), 0.0001);
+
+        EstadisticaOperativaDTO cancelacionesTotales = service.generarInformeOperativoAgendas(inicio, fin);
+        assertEquals(100.0, cancelacionesTotales.getPorcentajeCancelaciones(), 0.0001);
+        assertEquals(0.0, cancelacionesTotales.getPorcentajeOcupacionAgendas());
+    }
+
+    @Test
+    void rechazaRangoDeFechasInvalidoSinConsultarRepositorio() {
+        LocalDate inicio = LocalDate.of(2026, 11, 30);
+        LocalDate fin = LocalDate.of(2026, 11, 1);
         assertThrows(IllegalArgumentException.class,
-                () -> service.generarInformeOperativoAgendas(fin, inicio));
+                () -> service.generarInformeOperativoAgendas(inicio, fin));
+        assertThrows(NullPointerException.class,
+                () -> service.generarInformeOperativoAgendas(null, inicio));
+        verify(repositorio, never()).buscarCitasEnPeriodo(inicio, fin);
+    }
+
+    @Test
+    void rechazaDatosOperativosNulosDevueltosPorElRepositorio() {
+        LocalDate inicio = LocalDate.of(2026, 11, 1);
+        LocalDate fin = inicio.plusDays(1);
+        when(repositorio.buscarCitasEnPeriodo(inicio, fin)).thenReturn(Arrays.asList((CitaDTO) null));
+        when(repositorio.buscarAgendasEnPeriodo(inicio, fin)).thenReturn(List.of());
+        when(repositorio.buscarSolicitudesEnPeriodo(inicio, fin)).thenReturn(List.of());
+
+        assertThrows(NullPointerException.class,
+                () -> service.generarInformeOperativoAgendas(inicio, fin));
     }
 
     @Test
@@ -224,5 +306,15 @@ class AnaliticaEstadisticasServiceImplTest {
         return new SolicitudPruebaDTO(
                 id, "paciente-" + id, "medico-1", tipoId, prioridad, null, null,
                 fecha, estado, seguimiento, seguimiento ? 12 : null);
+    }
+
+    private static CitaDTO cita(String id, String solicitudId, LocalDateTime fecha, EstadoCita estado) {
+        return new CitaDTO(id, solicitudId, "paciente", "RX", fecha, 30,
+                "sala-1", "medico-1", estado, null);
+    }
+
+    private static AgendaMedicaDTO agenda(
+            String id, LocalDate fecha, LocalTime inicio, LocalTime fin, int intervalo) {
+        return new AgendaMedicaDTO(id, "sala-1", "RX", fecha, inicio, fin, intervalo);
     }
 }

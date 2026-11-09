@@ -2,14 +2,20 @@ package es.uclm.esi.iso2.sescam.analitica.persistencia;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.CitaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.EstadisticaOperativaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.SolicitudPruebaDTO;
+import es.uclm.esi.iso2.sescam.common.enums.EstadoCita;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoSolicitud;
 import es.uclm.esi.iso2.sescam.common.enums.ModalidadPrueba;
 import es.uclm.esi.iso2.sescam.common.enums.Prioridad;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,6 +90,36 @@ class EstadisticasRepositorioEnMemoriaTest {
         assertEquals(10, filtradas.get(0).getTotalCitasProgramadas());
         filtradas.get(0).setTotalCitasProgramadas(99);
         assertEquals(10, repositorio.buscarTodasLasEstadisticasOperativas().get(0).getTotalCitasProgramadas());
+    }
+
+    @Test
+    void guardaYFiltraCitasAgendasYSolicitudesPorPeriodo() {
+        LocalDate dia = LocalDate.of(2026, 11, 9);
+        SolicitudPruebaDTO solicitud = solicitud("s1", "medico-1", "rx-id", EstadoSolicitud.CITADA);
+        solicitud.setFechaSolicitud(dia.atTime(8, 0));
+        repositorio.guardarSolicitud(solicitud);
+        repositorio.guardarSolicitud(solicitud("s2", "medico-1", "rx-id", EstadoSolicitud.PENDIENTE_CITACION));
+        CitaDTO cita = new CitaDTO("c1", "s1", "p1", "rx-id", dia.atTime(10, 0),
+                30, "sala-1", "medico-1", EstadoCita.PROGRAMADA, null);
+        repositorio.guardarCita(cita);
+        repositorio.guardarAgenda(new AgendaMedicaDTO(
+                "a1", "sala-1", "rx-id", dia, LocalTime.of(8, 0), LocalTime.of(12, 0), 30));
+
+        assertEquals(1, repositorio.buscarCitasEnPeriodo(dia, dia).size());
+        assertEquals(1, repositorio.buscarAgendasEnPeriodo(dia, dia).size());
+        assertEquals(List.of("s1"), repositorio.buscarSolicitudesEnPeriodo(dia, dia).stream()
+                .map(SolicitudPruebaDTO::getId).toList());
+        assertEquals("s1", repositorio.buscarSolicitudPorId("s1").getId());
+        assertNull(repositorio.buscarSolicitudPorId("no-existe"));
+        assertThrows(IllegalArgumentException.class, () -> repositorio.buscarCitasEnPeriodo(dia, dia.minusDays(1)));
+        assertThrows(IllegalArgumentException.class,
+                () -> repositorio.guardarAgenda(new AgendaMedicaDTO(
+                        "a2", "sala-1", "rx-id", dia, LocalTime.of(8, 0), LocalTime.of(9, 0), 0)));
+        assertThrows(NullPointerException.class, () -> repositorio.guardarCita(null));
+        assertThrows(IllegalArgumentException.class,
+                () -> repositorio.guardarCita(new CitaDTO(
+                        " ", "s1", "p1", "rx-id", LocalDateTime.now(), 30,
+                        "sala-1", "medico-1", EstadoCita.PROGRAMADA, null)));
     }
 
     @Test

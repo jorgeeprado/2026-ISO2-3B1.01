@@ -1,5 +1,7 @@
 package es.uclm.esi.iso2.sescam.analitica.persistencia;
 
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.CitaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.EstadisticaOperativaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.SolicitudPruebaDTO;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoSolicitud;
@@ -18,6 +20,8 @@ import java.util.Objects;
 public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositorio {
 
     private final Map<String, SolicitudPruebaDTO> solicitudesPorId = new LinkedHashMap<>();
+    private final Map<String, CitaDTO> citasPorId = new LinkedHashMap<>();
+    private final Map<String, AgendaMedicaDTO> agendasPorId = new LinkedHashMap<>();
     private final Map<String, ModalidadPrueba> modalidadPorTipoPrueba = new LinkedHashMap<>();
     private final List<EstadisticaOperativaDTO> estadisticasOperativas = new ArrayList<>();
 
@@ -63,10 +67,67 @@ public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositori
     }
 
     @Override
+    public synchronized SolicitudPruebaDTO buscarSolicitudPorId(String solicitudId) {
+        validarIdentificador(solicitudId, "El id de solicitud");
+        SolicitudPruebaDTO solicitud = solicitudesPorId.get(solicitudId);
+        return solicitud == null ? null : copiar(solicitud);
+    }
+
+    @Override
+    public synchronized List<SolicitudPruebaDTO> buscarSolicitudesEnPeriodo(
+            LocalDate fechaInicio, LocalDate fechaFin) {
+        validarIntervalo(fechaInicio, fechaFin);
+        return solicitudesPorId.values().stream()
+                .filter(solicitud -> solicitud.getFechaSolicitud() != null)
+                .filter(solicitud -> estaEnPeriodo(solicitud.getFechaSolicitud().toLocalDate(), fechaInicio, fechaFin))
+                .map(EstadisticasRepositorioEnMemoria::copiar)
+                .toList();
+    }
+
+    @Override
     public synchronized void registrarModalidadTipoPrueba(String tipoPruebaId, ModalidadPrueba modalidad) {
         validarIdentificador(tipoPruebaId, "El id del tipo de prueba");
         Objects.requireNonNull(modalidad, "La modalidad no puede ser nula");
         modalidadPorTipoPrueba.put(tipoPruebaId, modalidad);
+    }
+
+    @Override
+    public synchronized void guardarCita(CitaDTO cita) {
+        Objects.requireNonNull(cita, "La cita no puede ser nula");
+        validarIdentificador(cita.getId(), "El id de cita");
+        Objects.requireNonNull(cita.getFechaHora(), "La fecha de la cita no puede ser nula");
+        Objects.requireNonNull(cita.getEstado(), "El estado de la cita no puede ser nulo");
+        if (cita.getDuracionMinutos() < 0) {
+            throw new IllegalArgumentException("La duración de la cita no puede ser negativa");
+        }
+        citasPorId.put(cita.getId(), copiar(cita));
+    }
+
+    @Override
+    public synchronized List<CitaDTO> buscarCitasEnPeriodo(LocalDate fechaInicio, LocalDate fechaFin) {
+        validarIntervalo(fechaInicio, fechaFin);
+        return citasPorId.values().stream()
+                .filter(cita -> estaEnPeriodo(cita.getFechaHora().toLocalDate(), fechaInicio, fechaFin))
+                .map(EstadisticasRepositorioEnMemoria::copiar)
+                .toList();
+    }
+
+    @Override
+    public synchronized void guardarAgenda(AgendaMedicaDTO agenda) {
+        Objects.requireNonNull(agenda, "La agenda no puede ser nula");
+        if (agenda.intervaloMinutos() <= 0) {
+            throw new IllegalArgumentException("El intervalo de la agenda debe ser positivo");
+        }
+        agendasPorId.put(agenda.idAgenda(), agenda);
+    }
+
+    @Override
+    public synchronized List<AgendaMedicaDTO> buscarAgendasEnPeriodo(
+            LocalDate fechaInicio, LocalDate fechaFin) {
+        validarIntervalo(fechaInicio, fechaFin);
+        return agendasPorId.values().stream()
+                .filter(agenda -> estaEnPeriodo(agenda.fecha(), fechaInicio, fechaFin))
+                .toList();
     }
 
     @Override
@@ -78,6 +139,9 @@ public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositori
         if (estadistica.getFechaInicio().isAfter(estadistica.getFechaFin())) {
             throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
         }
+        estadisticasOperativas.removeIf(guardada ->
+                guardada.getFechaInicio().equals(estadistica.getFechaInicio())
+                        && guardada.getFechaFin().equals(estadistica.getFechaFin()));
         estadisticasOperativas.add(copiar(estadistica));
     }
 
@@ -113,6 +177,24 @@ public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositori
         }
     }
 
+    private static boolean estaEnPeriodo(LocalDate fecha, LocalDate inicio, LocalDate fin) {
+        return !fecha.isBefore(inicio) && !fecha.isAfter(fin);
+    }
+
+    private static CitaDTO copiar(CitaDTO origen) {
+        return new CitaDTO(
+                origen.getId(),
+                origen.getSolicitudId(),
+                origen.getPacienteId(),
+                origen.getTipoPruebaId(),
+                origen.getFechaHora(),
+                origen.getDuracionMinutos(),
+                origen.getSalaId(),
+                origen.getMedicoRadiologoId(),
+                origen.getEstado(),
+                origen.getMotivoCancelacion());
+    }
+
     private static SolicitudPruebaDTO copiar(SolicitudPruebaDTO origen) {
         return new SolicitudPruebaDTO(
                 origen.getId(),
@@ -129,7 +211,7 @@ public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositori
     }
 
     private static EstadisticaOperativaDTO copiar(EstadisticaOperativaDTO origen) {
-        return new EstadisticaOperativaDTO(
+        EstadisticaOperativaDTO copia = new EstadisticaOperativaDTO(
                 origen.getFechaInicio(),
                 origen.getFechaFin(),
                 origen.getTotalCitasProgramadas(),
@@ -138,5 +220,7 @@ public class EstadisticasRepositorioEnMemoria implements IEstadisticasRepositori
                 origen.getTiempoMedioEsperaDias(),
                 origen.getPorcentajeOcupacionAgendas(),
                 origen.getSolicitudesPendientesEnListaEspera());
+        copia.setPorcentajeCancelaciones(origen.getPorcentajeCancelaciones());
+        return copia;
     }
 }
