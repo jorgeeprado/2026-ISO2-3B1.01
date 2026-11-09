@@ -1,9 +1,12 @@
 package es.uclm.esi.iso2.sescam.analitica.dominio;
 
 import es.uclm.esi.iso2.sescam.analitica.persistencia.IEstadisticasRepositorio;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.CitaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.EstadisticaOperativaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.PruebaCatalogoDTO;
 import es.uclm.esi.iso2.sescam.common.dto.SolicitudPruebaDTO;
+import es.uclm.esi.iso2.sescam.common.enums.EstadoCita;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoSolicitud;
 import es.uclm.esi.iso2.sescam.common.enums.ModalidadPrueba;
 import es.uclm.esi.iso2.sescam.common.enums.Prioridad;
@@ -83,10 +86,55 @@ public class AnaliticaEstadisticasServiceImpl implements IAnaliticaEstadisticasS
     @Override
     public EstadisticaOperativaDTO generarInformeOperativoAgendas(LocalDate fechaInicio, LocalDate fechaFin) {
         validarIntervalo(fechaInicio, fechaFin);
-        List<EstadisticaOperativaDTO> estadisticas =
-                repositorio.buscarEstadisticasOperativas(fechaInicio, fechaFin);
-        validarColeccion(estadisticas, "El repositorio devolvió una colección de estadísticas nula");
-        return agregarEstadisticas(estadisticas, fechaInicio, fechaFin);
+        List<CitaDTO> citas = repositorio.buscarCitasEnPeriodo(fechaInicio, fechaFin);
+        List<AgendaMedicaDTO> agendas = repositorio.buscarAgendasEnPeriodo(fechaInicio, fechaFin);
+        List<SolicitudPruebaDTO> solicitudes =
+                repositorio.buscarSolicitudesEnPeriodo(fechaInicio, fechaFin);
+        validarColeccion(citas, "El repositorio devolvió una colección de citas nula");
+        validarColeccion(agendas, "El repositorio devolvió una colección de agendas nula");
+        validarColeccion(solicitudes, "El repositorio devolvió una colección de solicitudes nula");
+        citas.forEach(AnaliticaEstadisticasServiceImpl::validarCitaOperativa);
+        solicitudes.forEach(solicitud ->
+                Objects.requireNonNull(solicitud, "La colección contiene una solicitud nula"));
+
+        long capacidadTotal = agendas.stream()
+                .mapToLong(AnaliticaEstadisticasServiceImpl::calcularCapacidadAgenda)
+                .sum();
+        long citasProgramadas = citas.stream()
+                .filter(AnaliticaEstadisticasServiceImpl::cuentaComoProgramada)
+                .count();
+        long citasRealizadas = citas.stream()
+                .filter(cita -> cita.getEstado() == EstadoCita.REALIZADA)
+                .count();
+        long citasCanceladas = citas.stream()
+                .filter(cita -> cita.getEstado() == EstadoCita.CANCELADA)
+                .count();
+        long citasOcupadas = citas.stream()
+                .filter(AnaliticaEstadisticasServiceImpl::ocupaHueco)
+                .count();
+
+        List<Long> demorasSegundos = citas.stream()
+                .filter(AnaliticaEstadisticasServiceImpl::ocupaHueco)
+                .map(this::calcularDemoraSegundos)
+                .toList();
+        double demoraMediaDias = demorasSegundos.isEmpty() ? 0.0
+                : demorasSegundos.stream().mapToLong(Long::longValue).average().orElse(0.0) / SEGUNDOS_POR_DIA;
+        int pendientes = (int) solicitudes.stream()
+                .filter(solicitud -> solicitud.getEstado() == EstadoSolicitud.PENDIENTE_CITACION)
+                .count();
+
+        EstadisticaOperativaDTO informe = new EstadisticaOperativaDTO(
+                fechaInicio,
+                fechaFin,
+                Math.toIntExact(citasProgramadas),
+                Math.toIntExact(citasRealizadas),
+                Math.toIntExact(citasCanceladas),
+                demoraMediaDias,
+                porcentaje(citasOcupadas, capacidadTotal),
+                pendientes);
+        informe.setPorcentajeCancelaciones(porcentaje(citasCanceladas, citasProgramadas));
+        repositorio.guardarEstadisticaOperativa(informe);
+        return informe;
     }
 
     @Override
@@ -102,6 +150,7 @@ public class AnaliticaEstadisticasServiceImpl implements IAnaliticaEstadisticasS
         resultado.put("totalCitasProgramadas", agregado.getTotalCitasProgramadas());
         resultado.put("totalCitasRealizadas", agregado.getTotalCitasRealizadas());
         resultado.put("totalCitasCanceladas", agregado.getTotalCitasCanceladas());
+        resultado.put("porcentajeCancelaciones", agregado.getPorcentajeCancelaciones());
         resultado.put("tiempoMedioEsperaDias", agregado.getTiempoMedioEsperaDias());
         resultado.put("porcentajeOcupacionAgendas", agregado.getPorcentajeOcupacionAgendas());
         resultado.put("solicitudesPendientesEnListaEspera", agregado.getSolicitudesPendientesEnListaEspera());
@@ -192,6 +241,50 @@ public class AnaliticaEstadisticasServiceImpl implements IAnaliticaEstadisticasS
         return denominador == 0 ? 0.0 : (double) numerador * 100.0 / denominador;
     }
 
+    private static long calcularCapacidadAgenda(AgendaMedicaDTO agenda) {
+        Objects.requireNonNull(agenda, "La colección contiene una agenda nula");
+        if (agenda.intervaloMinutos() <= 0) {
+            throw new IllegalArgumentException("El intervalo de una agenda debe ser positivo");
+        }
+        long duracionMinutos = ChronoUnit.MINUTES.between(agenda.horaInicio(), agenda.horaFin());
+        return duracionMinutos / agenda.intervaloMinutos();
+    }
+
+    private static void validarCitaOperativa(CitaDTO cita) {
+        Objects.requireNonNull(cita, "La colección contiene una cita nula");
+        validarIdentificador(cita.getId(), "El id de cita");
+        Objects.requireNonNull(cita.getFechaHora(), "Una cita no tiene fecha y hora");
+        Objects.requireNonNull(cita.getEstado(), "Una cita no tiene estado");
+    }
+
+    private static boolean cuentaComoProgramada(CitaDTO cita) {
+        return cita.getEstado() == EstadoCita.PROGRAMADA
+                || cita.getEstado() == EstadoCita.CONFIRMADA
+                || cita.getEstado() == EstadoCita.REALIZADA
+                || cita.getEstado() == EstadoCita.CANCELADA;
+    }
+
+    private static boolean ocupaHueco(CitaDTO cita) {
+        return cita.getEstado() == EstadoCita.PROGRAMADA
+                || cita.getEstado() == EstadoCita.CONFIRMADA
+                || cita.getEstado() == EstadoCita.REALIZADA;
+    }
+
+    private long calcularDemoraSegundos(CitaDTO cita) {
+        validarIdentificador(cita.getSolicitudId(), "solicitudId de una cita programada");
+        SolicitudPruebaDTO solicitud = repositorio.buscarSolicitudPorId(cita.getSolicitudId());
+        if (solicitud == null || solicitud.getFechaSolicitud() == null) {
+            throw new IllegalStateException(
+                    "No se puede calcular la demora de la cita " + cita.getId()
+                            + ": falta la solicitud asociada o su fecha");
+        }
+        long demora = ChronoUnit.SECONDS.between(solicitud.getFechaSolicitud(), cita.getFechaHora());
+        if (demora < 0) {
+            throw new IllegalStateException("La fecha de citación precede a la fecha de solicitud");
+        }
+        return demora;
+    }
+
     private static EstadisticaOperativaDTO agregarEstadisticas(
             List<EstadisticaOperativaDTO> estadisticas, LocalDate fechaInicio, LocalDate fechaFin) {
         int programadas = 0;
@@ -214,8 +307,10 @@ public class AnaliticaEstadisticasServiceImpl implements IAnaliticaEstadisticasS
         }
         double espera = pesoTotal == 0 ? 0.0 : esperaPonderada / pesoTotal;
         double ocupacion = pesoTotal == 0 ? 0.0 : ocupacionPonderada / pesoTotal;
-        return new EstadisticaOperativaDTO(
+        EstadisticaOperativaDTO agregado = new EstadisticaOperativaDTO(
                 fechaInicio, fechaFin, programadas, realizadas, canceladas, espera, ocupacion, pendientes);
+        agregado.setPorcentajeCancelaciones(porcentaje(canceladas, programadas));
+        return agregado;
     }
 
     private static void validarIntervalo(LocalDate fechaInicio, LocalDate fechaFin) {
