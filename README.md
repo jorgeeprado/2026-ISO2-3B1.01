@@ -100,4 +100,4 @@ mvn clean package
 - [CONTEXT.md](CONTEXT.md): Contexto y reglas del negocio hospitalario.
 - [DECISIONS.md](DECISIONS.md): Justificación técnica de decisiones arquitectónicas.
 - [PLAN.md](PLAN.md): Planificación temporal, costes, agenda y matriz RADIT.
-- [Wiki del Proyecto](https://github.com/KevinRuedas183/ISO24-ISO2-C01/wiki): Actas de reuniones, seguimiento y guías.
+- [Wiki del Proyecto](https://github.com/jorgeeprado/2026-ISO2-3B1.01/wiki): Actas de reuniones, seguimiento y guías.
