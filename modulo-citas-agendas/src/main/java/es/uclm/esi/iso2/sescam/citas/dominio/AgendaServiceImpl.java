@@ -1,7 +1,7 @@
 package es.uclm.esi.iso2.sescam.citas.dominio;
 
-import es.uclm.esi.iso2.sescam.common.interfaces.dto.AgendaMedicaDTO;
-import es.uclm.esi.iso2.sescam.common.interfaces.services.AgendaService;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.interfaces.AgendaService;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

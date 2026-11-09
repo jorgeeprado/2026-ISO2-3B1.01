@@ -1,7 +1,7 @@
 package es.uclm.esi.iso2.sescam.catalogo.dominio;
 
-import es.uclm.esi.iso2.sescam.common.interfaces.dto.PruebaDiagnosticaDTO;
-import es.uclm.esi.iso2.sescam.common.interfaces.services.CatalogoService;
+import es.uclm.esi.iso2.sescam.common.dto.PruebaDiagnosticaDTO;
+import es.uclm.esi.iso2.sescam.common.interfaces.CatalogoService;
 
 import java.util.ArrayList;
 import java.util.HashMap;

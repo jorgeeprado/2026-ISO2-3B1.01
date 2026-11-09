@@ -1,6 +1,6 @@
 package es.uclm.esi.iso2.sescam.citas.dominio;
 
-import es.uclm.esi.iso2.sescam.common.interfaces.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

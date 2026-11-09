@@ -1,6 +1,6 @@
-package es.uclm.esi.iso2.sescam.common.interfaces.services;
+package es.uclm.esi.iso2.sescam.common.interfaces;
 
-import es.uclm.esi.iso2.sescam.common.interfaces.dto.AgendaMedicaDTO;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
 
 import java.time.LocalDate;
 import java.util.List;
