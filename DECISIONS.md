@@ -173,3 +173,49 @@
 - **Decisión:** Persistencia mediante `IListaEsperaRepository`/`ListaEsperaRepositoryInMemory`, inyectado por constructor junto con un `Clock` para la fecha de inscripción. Errores como en D-013: `IllegalArgumentException` para datos inválidos, duplicados o identificadores inexistentes, e `IllegalStateException` para estados incompatibles. Las entradas no se borran: retirar las deja en `RETIRADA` y una solicitud ya inscrita no puede volver a inscribirse. Cambio de prioridad, retirada y reincorporación exigen motivo; solo se guarda el último, como en D-015.
 - **Motivo / Justificación:** Coherencia con CU-14 y pruebas deterministas.
 - **Consecuencias:** No hay historial de cambios de prioridad; si se exige trazabilidad completa, deberá añadirse un registro de eventos de la lista de espera.
+
+### D-022 · Contratos de CU-13 y contratos de citas heredados
+- **Fecha:** 10/11/2026 · **Iteración:** 8 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** `ICitasAgendasService` mezcla CU-01, CU-08, CU-13 y CU-23, nadie lo implementa y asigna citas con fecha, hora y sala libres, sin pasar por los turnos de agenda. `CitaService`/`CitaServiceImpl` es un CRUD que permite crear citas sin turno ni lista de espera.
+- **Decisión:** Se añaden a `modulo-common-interfaces` `CitacionAdministrativaService` (asignar, reprogramar y cancelar citas) y `ConsultaCitasService` (consulta de solo lectura), sin prefijo `I` y separados por cliente. `CitacionServiceImpl` implementa ambas. `ICitasAgendasService`, `CitaService` y `CitaServiceImpl` se consideran **heredados**: no se modifican ni se usan en CU-13.
+- **Motivo / Justificación:** Principio de segregación de interfaces y garantizar RN-02 obligando a que toda cita ocupe un turno de CU-14 y salga de la lista de espera de CU-15.
+- **Consecuencias:** Mientras convivan, el almacén oficial de citas es el de `CitacionServiceImpl`. Retirar los contratos heredados queda pendiente de acuerdo del equipo.
+
+### D-023 · Enlace entre cita y turno en la persistencia
+- **Fecha:** 10/11/2026 · **Iteración:** 8 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** `CitaDTO` no tiene identificador de turno, y modificarlo afectaría a CU-16 (`modulo-analitica-estadisticas`).
+- **Decisión:** `CitaRegistro(cita, idTurno, motivoAsignacion, motivoReprogramacion)` se guarda en `ICitaRepository`/`CitaRepositoryInMemory` con copias defensivas, porque `CitaDTO` es mutable. Cada cita ocupa un único turno: `fechaHora` y `duracionMinutos` se toman del turno; si el turno es de sala se informa `salaId`, y si es de médico `medicoRadiologoId`; el otro campo queda a `null`. Los identificadores son legibles (`CITA-000001`) y los genera un `Supplier<String>` inyectado.
+- **Motivo / Justificación:** Mismo enfoque que D-011 para no modificar contratos existentes.
+- **Consecuencias:** Una cita no reserva a la vez sala y radiólogo; si se exige, habrá que ampliar el modelo.
+
+### D-024 · Orquestación de CU-13 con compensación
+- **Fecha:** 10/11/2026 · **Iteración:** 8 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** Asignar, reprogramar y cancelar modifican el turno (CU-14), la lista de espera (CU-15) y la cita, sin transacciones entre servicios.
+- **Decisión:** Las validaciones se hacen antes de modificar nada. Después:
+  - **Asignar:** `ocuparTurno` → `marcarCitada` → guardar la cita.
+  - **Reprogramar:** `ocuparTurno` (nuevo) → `liberarTurno` (antiguo) → guardar la cita.
+  - **Cancelar:** `liberarTurno` → `reincorporar` → guardar la cita.
+  
+  Si falla un paso, se deshacen los anteriores en orden inverso y se relanza la excepción original. Si una compensación falla, su excepción se añade como suprimida y se continúa con las demás.
+- **Motivo / Justificación:** Primero se asegura el recurso escaso (el turno) y lo último es la persistencia propia.
+- **Consecuencias:** Si falla también una compensación puede quedar un estado inconsistente, detectable por la excepción suprimida.
+
+### D-025 · Estados de la cita, de la lista de espera y de la solicitud
+- **Fecha:** 10/11/2026 · **Iteración:** 8 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Decisión:**
+  - Asignar crea la cita `PROGRAMADA` y la entrada de la lista pasa a `CITADA`.
+  - Reprogramar mantiene la cita `PROGRAMADA` (también si estaba `CONFIRMADA`) con la nueva fecha y hora; la lista no cambia.
+  - Cancelar deja la cita `CANCELADA` con motivo y siempre reincorpora la solicitud a la lista conservando su antigüedad (RN-01).
+  - Solo las citas `PROGRAMADA` o `CONFIRMADA` se pueden reprogramar o cancelar.
+  - CU-13 **no modifica `EstadoSolicitud`**: pertenece al módulo de prescripción y no hay contrato para cambiarlo (RNF-09).
+- **Motivo / Justificación:** CU-16 cuenta como ocupadas las citas `PROGRAMADA`, `CONFIRMADA` y `REALIZADA`, pero no las `REPROGRAMADA`.
+- **Consecuencias:** La solicitud sigue `PENDIENTE_CITACION` en el módulo de prescripción y en CU-16 aunque tenga cita. Queda pendiente acordar con Inés y Pablo un contrato para actualizarla.
+
+### D-026 · RN-01 y RN-02 en la asignación
+- **Fecha:** 10/11/2026 · **Iteración:** 8 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Decisión:**
+  - Al asignar se consultan los candidatos del turno sin límite (`Integer.MAX_VALUE`), para que ninguna solicitud quede fuera aunque esté al final de la lista.
+  - Se puede asignar cualquier candidato compatible; si no es el primero según RN-01, el motivo es obligatorio y se guarda en `CitaRegistro.motivoAsignacion`.
+  - No se asignan ni reprograman citas en turnos que ya han empezado según el `Clock` inyectado; cancelar se permite en cualquier cita activa.
+  - RN-02 se garantiza porque solo `CitacionAdministrativaService` ocupa o libera turnos por citas y marca entradas como citadas. La comprobación de roles corresponde a CU-18.
+- **Consecuencias:** Los saltos de orden quedan trazados, pero solo se guarda el motivo de la asignación y el de la última reprogramación.
