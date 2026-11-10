@@ -138,3 +138,38 @@
 - **Decisión:** Persistencia mediante DAOs en memoria (`IFranjaRepository`/`FranjaRepositoryInMemory`, `ITurnoRepository`/`TurnoRepositoryInMemory`) inyectados por constructor en `AgendaServiceImpl`. JaCoCo 0.8.12 en el pom del módulo con umbral ≥ 80 % de instrucciones, igual que `modulo-notificaciones-calidad`.
 - **Motivo / Justificación:** Aislar el dominio con mocks en las pruebas y verificar la cobertura en cada `mvn test`.
 - **Consecuencias:** La validación oficial se realiza con JDK 17 (D-003); no se añaden ajustes de Mockito para versiones posteriores del JDK.
+
+### D-017 · Entrada de lista de espera como copia de la prescripción (CU-15)
+- **Fecha:** 10/11/2026 · **Iteración:** 7 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-15 necesita la prioridad clínica y la fecha de prescripción de cada solicitud. `SolicitudPruebaDTO` es un POJO mutable que pertenece al módulo de prescripción, y `EstadoSolicitud` describe el ciclo de vida de la prescripción, no el de la lista de espera.
+- **Decisión:** `inscribir` recibe el `SolicitudPruebaDTO` completo, que debe estar `PENDIENTE_CITACION`, y copia sus datos en el nuevo record `EntradaListaEsperaDTO`, identificado por `idSolicitud`. `SolicitudPruebaDTO.fechaSolicitud` se toma como fecha de prescripción. La entrada tiene su propio estado, el nuevo enum `EstadoEntradaEspera { EN_ESPERA, CITADA, RETIRADA }`. Hay una lista por `tipoPruebaId`.
+- **Motivo / Justificación:** Que un cambio externo en el DTO no altere el orden sin pasar por el servicio, cumplir RNF-09 sin depender de `IPrescripcionService` (aún sin implementar) y no confundir la retirada de la lista con la cancelación de la prescripción.
+- **Consecuencias:** Los cambios de prioridad se hacen con `cambiarPrioridad`. Si el módulo de prescripción modifica la solicitud, la lista no se actualiza por sí sola.
+
+### D-018 · Orden de la lista de espera según RN-01
+- **Fecha:** 10/11/2026 · **Iteración:** 7 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** RN-01 ordena por prioridad clínica (`URGENTE` > `PREFERENTE` > `ORDINARIO`) y, a igual prioridad, FIFO por fecha de prescripción.
+- **Decisión:** El comparador `OrdenListaEspera` ordena por rango explícito de prioridad, después por fecha de prescripción (de más antigua a más reciente), después por fecha de inscripción y, por último, por `idSolicitud`. Un cambio de prioridad o una reincorporación conservan la fecha de prescripción y la de inscripción.
+- **Motivo / Justificación:** Un orden siempre igual y comprobable en los tests, sin depender del `ordinal()` del enum `Prioridad`.
+- **Consecuencias:** Una solicitud que cambia de prioridad se coloca en el nuevo nivel según su antigüedad real, y una cita cancelada no hace perder la posición.
+
+### D-019 · Contratos de CU-15 separados por cliente (ISP)
+- **Fecha:** 10/11/2026 · **Iteración:** 7 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** Admisión mantiene las listas, mientras que la citación (CU-13) y la reasignación de huecos (CU-23) solo necesitan candidatos y cambios de estado.
+- **Decisión:** Se añaden a `modulo-common-interfaces` `GestionListaEsperaService` (inscribir, cambiar prioridad, retirar, consultar lista y posición, obtener entrada) y `CandidatosListaEsperaService` (proponer candidatos para un turno, marcar como citada, reincorporar), sin prefijo `I`. `ListaEsperaServiceImpl` implementa ambas.
+- **Motivo / Justificación:** Principio de segregación de interfaces, igual que en D-012.
+- **Consecuencias:** CU-13 y CU-23 dependerán solo de `CandidatosListaEsperaService`.
+
+### D-020 · Los huecos de CU-15 se obtienen de las agendas de CU-14
+- **Fecha:** 10/11/2026 · **Iteración:** 7 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-15 gestiona huecos, pero los turnos ya los modela CU-14, y la asignación formal del hueco corresponde a CU-13 (RN-02).
+- **Decisión:** Los huecos son los turnos `LIBRE` de `DisponibilidadAgendaService`; no hay un modelo de huecos propio. Una entrada es compatible con un turno si su `tipoPruebaId` coincide con el `idPruebaAsociada` de la franja del turno (`AgendaService.obtenerAgendaPorId`); si la franja no tiene prueba asociada (nula o vacía), admite cualquier prueba. `proponerCandidatos` no reserva ni ocupa el turno. La ventana de 48 h y la reasignación automática quedan para CU-23.
+- **Motivo / Justificación:** Evitar duplicar el modelo de turnos y no invadir CU-13 ni CU-23.
+- **Consecuencias:** CU-15 depende de los contratos de CU-14, por lo que su rama parte de la de CU-14. CU-13 debe llamar a `marcarCitada` al consolidar la cita y a `reincorporar` al cancelarla.
+
+### D-021 · Persistencia en memoria, errores y trazabilidad de la lista de espera
+- **Fecha:** 10/11/2026 · **Iteración:** 7 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** El módulo sigue MVC con persistencia simulada y debe cumplir RNF-10.
+- **Decisión:** Persistencia mediante `IListaEsperaRepository`/`ListaEsperaRepositoryInMemory`, inyectado por constructor junto con un `Clock` para la fecha de inscripción. Errores como en D-013: `IllegalArgumentException` para datos inválidos, duplicados o identificadores inexistentes, e `IllegalStateException` para estados incompatibles. Las entradas no se borran: retirar las deja en `RETIRADA` y una solicitud ya inscrita no puede volver a inscribirse. Cambio de prioridad, retirada y reincorporación exigen motivo; solo se guarda el último, como en D-015.
+- **Motivo / Justificación:** Coherencia con CU-14 y pruebas deterministas.
+- **Consecuencias:** No hay historial de cambios de prioridad; si se exige trazabilidad completa, deberá añadirse un registro de eventos de la lista de espera.
