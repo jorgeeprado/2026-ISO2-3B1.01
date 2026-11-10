@@ -96,3 +96,45 @@
 - **Decisión:** El módulo expone la API con Spring Web y usa Spring Data JPA como adaptador de persistencia. H2 se limita a las pruebas; la aplicación integradora configura su datasource. `INotificacionRepository` conserva la abstracción de dominio y el adaptador en memoria se mantiene para pruebas unitarias. El identificador numérico de persistencia se expone aparte del identificador público `String` ya existente.
 - **Motivo / Justificación:** Cumplir el contrato de CU-02.2 sin romper la compatibilidad del DTO utilizado por CU-02.1.
 - **Consecuencias:** La aplicación integradora debe configurar el datasource de producción y al menos un canal de notificación para habilitar el envío; sin canales, las consultas siguen disponibles y los envíos fallan explícitamente.
+
+### D-011 · Reutilización de `AgendaMedicaDTO` como franja y tipo de recurso separado (CU-14)
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-14 gestiona agendas de médicos y salas. `AgendaMedicaDTO` ya representa una franja (recurso, fecha, horas, intervalo) y lo consume CU-16 (`modulo-analitica-estadisticas`); añadirle un campo cambiaría su constructor canónico y rompería otro módulo.
+- **Decisión:** La franja es `AgendaMedicaDTO` sin modificar; su campo `idMedico` se interpreta como identificador de recurso. El tipo viaja aparte en el nuevo enum `TipoRecurso { MEDICO, SALA }` y se persiste junto a la franja (`FranjaRegistro`). Los métodos heredados de `AgendaService` (`crearAgenda`, `listarAgendasPorMedico`) asumen `MEDICO`.
+- **Motivo / Justificación:** Reutilizar el DTO existente sin duplicar conceptos (un `FranjaAgendaDTO` nuevo) ni romper CU-16 (añadir `tipoRecurso` al record).
+- **Consecuencias:** Un mismo identificador puede usarse como médico y como sala sin colisión. Si se versiona `AgendaMedicaDTO`, el tipo podría integrarse en él.
+
+### D-012 · Contratos de CU-14 separados por cliente (ISP) y generación de turnos
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** La administración de agendas (Admisión) y la reserva de huecos que hará la citación (CU-13) tienen clientes distintos.
+- **Decisión:** Se añaden a `modulo-common-interfaces` `GestionAgendaService extends AgendaService` (franjas, consulta de agenda, bloqueos), `DisponibilidadAgendaService` (huecos libres, `obtenerTurno`, `ocuparTurno`, `liberarTurno`), `TurnoAgendaDTO` y `EstadoTurno { LIBRE, OCUPADO, BLOQUEADO }`, sin prefijo `I` como `AgendaService`/`CitaService`. `AgendaServiceImpl` implementa ambas. Cada franja genera ⌊(fin − inicio) / intervalo⌋ turnos (mismo cálculo de capacidad que CU-16); los minutos sobrantes no generan turno y una franja que no admite al menos un turno se rechaza. El identificador del turno es determinista: `idAgenda + "#" + HH:mm`.
+- **Motivo / Justificación:** Principio de segregación de interfaces y coherencia con las métricas de ocupación de CU-16.
+- **Consecuencias:** CU-13 dependerá solo de `DisponibilidadAgendaService`.
+
+### D-013 · Prohibición de solapes por recurso y fecha
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-14 exige que no existan franjas solapadas de un mismo recurso en una misma fecha.
+- **Decisión:** Dos franjas del mismo `TipoRecurso`, recurso y fecha no pueden solaparse. Los intervalos son semiabiertos `[inicio, fin)`, por lo que franjas contiguas (09:00–10:00 y 10:00–11:00) son válidas. Se valida en alta, modificación y `crearAgenda`. Se lanza `IllegalArgumentException` para datos inválidos o identificadores inexistentes e `IllegalStateException` para conflictos de negocio (solape, estado de turno incompatible).
+- **Motivo / Justificación:** Usar excepciones estándar evita crear excepciones compartidas nuevas en `modulo-common-interfaces`.
+- **Consecuencias:** Los clientes distinguen errores de entrada y conflictos de negocio por el tipo de excepción.
+
+### D-014 · Integridad entre agenda y citas al modificar, eliminar o bloquear
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** Las franjas y turnos de CU-14 serán referenciados por las citas de CU-13.
+- **Decisión:** Una franja con algún turno `OCUPADO` no puede modificarse ni eliminarse, y un turno `OCUPADO` no puede bloquearse: antes debe reprogramarse o cancelarse la cita (CU-13). Al modificar una franja se regeneran sus turnos conservando los bloqueos (y su motivo) de los turnos que empiezan a la misma hora. Por compatibilidad con el contrato previo, `crearAgenda` con un identificador existente se trata como modificación; `crearFranja` lo rechaza.
+- **Motivo / Justificación:** Evitar citas huérfanas y no perder bloqueos al reajustar horarios.
+- **Consecuencias:** Ninguna operación de CU-14 deja citas apuntando a turnos inexistentes.
+
+### D-015 · Bloqueos y desbloqueos con motivo obligatorio
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-14 requiere registrar el motivo de cada bloqueo o desbloqueo de turnos.
+- **Decisión:** `bloquearTurno`, `desbloquearTurno` y `bloquearFranja` exigen motivo no vacío, que se guarda en `TurnoAgendaDTO.motivo` (solo el último). Solo se bloquean turnos `LIBRE` y solo se desbloquean turnos `BLOQUEADO`; `bloquearFranja` bloquea únicamente los turnos libres y devuelve los afectados.
+- **Motivo / Justificación:** Trazabilidad mínima del estado del turno sin introducir un registro de eventos.
+- **Consecuencias:** No se mantiene historial de bloqueos; si se exige trazabilidad completa, deberá añadirse un registro de eventos de agenda.
+
+### D-016 · Persistencia en memoria y cobertura con JaCoCo en `modulo-citas-agendas`
+- **Fecha:** 10/11/2026 · **Iteración:** 4 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** El módulo debe seguir MVC con persistencia simulada y cumplir RNF-10 (cobertura > 80 %).
+- **Decisión:** Persistencia mediante DAOs en memoria (`IFranjaRepository`/`FranjaRepositoryInMemory`, `ITurnoRepository`/`TurnoRepositoryInMemory`) inyectados por constructor en `AgendaServiceImpl`. JaCoCo 0.8.12 en el pom del módulo con umbral ≥ 80 % de instrucciones, igual que `modulo-notificaciones-calidad`.
+- **Motivo / Justificación:** Aislar el dominio con mocks en las pruebas y verificar la cobertura en cada `mvn test`.
+- **Consecuencias:** La validación oficial se realiza con JDK 17 (D-003); no se añaden ajustes de Mockito para versiones posteriores del JDK.
