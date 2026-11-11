@@ -219,3 +219,10 @@
   - No se asignan ni reprograman citas en turnos que ya han empezado según el `Clock` inyectado; cancelar se permite en cualquier cita activa.
   - RN-02 se garantiza porque solo `CitacionAdministrativaService` ocupa o libera turnos por citas y marca entradas como citadas. La comprobación de roles corresponde a CU-18.
 - **Consecuencias:** Los saltos de orden quedan trazados, pero solo se guarda el motivo de la asignación y el de la última reprogramación.
+
+### D-027 · Consulta de solicitudes y disponibilidad de agendas (CU-08)
+- **Fecha:** 11/11/2026 · **Iteración:** 10 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** CU-08 debe mostrar al médico sus solicitudes y los huecos disponibles sin duplicar la regla de disponibilidad de CU-14 ni acoplar módulos de negocio.
+- **Decisión:** `ConsultaSolicitudesAgendasServiceImpl` consulta las solicitudes mediante `IPrescripcionService` y delega los huecos libres en `DisponibilidadAgendaService.consultarHuecosLibres`. CU-08 no mantiene un repositorio propio de agendas y devuelve copias defensivas de los DTO mutables de solicitud.
+- **Motivo / Justificación:** Reutilizar el contrato común de CU-14 mantiene una única fuente de verdad para el estado y filtrado de turnos, y cumple RNF-09.
+- **Consecuencias:** Por D-025, CU-13 no modifica `EstadoSolicitud`; por tanto, una solicitud ya citada puede seguir apareciendo como `PENDIENTE_CITACION` en CU-08. CU-08 muestra el estado recibido de prescripción y no lo infiere ni lo modifica. Cualquier sincronización futura requiere un contrato acordado con el módulo de prescripción.
