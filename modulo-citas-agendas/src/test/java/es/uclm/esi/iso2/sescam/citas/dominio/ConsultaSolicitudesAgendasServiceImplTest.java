@@ -1,14 +1,15 @@
 package es.uclm.esi.iso2.sescam.citas.dominio;
 
-import es.uclm.esi.iso2.sescam.citas.persistencia.IConsultaAgendasRepository;
-import es.uclm.esi.iso2.sescam.citas.presentacion.ConsultaSolicitudesAgendasController;
+import es.uclm.esi.iso2.sescam.citas.persistencia.FranjaRepositoryInMemory;
+import es.uclm.esi.iso2.sescam.citas.persistencia.TurnoRepositoryInMemory;
+import es.uclm.esi.iso2.sescam.common.dto.AgendaMedicaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.SolicitudPruebaDTO;
 import es.uclm.esi.iso2.sescam.common.dto.TurnoAgendaDTO;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoSolicitud;
 import es.uclm.esi.iso2.sescam.common.enums.EstadoTurno;
 import es.uclm.esi.iso2.sescam.common.enums.Prioridad;
 import es.uclm.esi.iso2.sescam.common.enums.TipoRecurso;
-import es.uclm.esi.iso2.sescam.common.interfaces.ConsultaSolicitudesAgendasService;
+import es.uclm.esi.iso2.sescam.common.interfaces.DisponibilidadAgendaService;
 import es.uclm.esi.iso2.sescam.common.interfaces.IPrescripcionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,35 +31,32 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class CU08ConsultaSolicitudesTest {
+class ConsultaSolicitudesAgendasServiceImplTest {
 
     private static final LocalDate FECHA = LocalDate.of(2026, 11, 20);
 
     @Mock
     private IPrescripcionService prescripcionService;
     @Mock
-    private IConsultaAgendasRepository consultaAgendasRepository;
-    @Mock
-    private ConsultaSolicitudesAgendasService consultaService;
+    private DisponibilidadAgendaService disponibilidadAgendaService;
 
     private ConsultaSolicitudesAgendasServiceImpl servicio;
 
     @BeforeEach
     void setUp() {
-        servicio = new ConsultaSolicitudesAgendasServiceImpl(prescripcionService, consultaAgendasRepository);
+        servicio = new ConsultaSolicitudesAgendasServiceImpl(prescripcionService, disponibilidadAgendaService);
     }
 
     @Test
     void constructorExigeServicios() {
         assertThrows(NullPointerException.class,
-            () -> new ConsultaSolicitudesAgendasServiceImpl(null, consultaAgendasRepository));
+                () -> new ConsultaSolicitudesAgendasServiceImpl(null, disponibilidadAgendaService));
         assertThrows(NullPointerException.class,
-            () -> new ConsultaSolicitudesAgendasServiceImpl(prescripcionService, null));
-        assertThrows(NullPointerException.class, () -> new ConsultaSolicitudesAgendasController(null));
+                () -> new ConsultaSolicitudesAgendasServiceImpl(prescripcionService, null));
     }
 
     @Test
-    void consultaSolicitudesDelMedicoConservaEstadoYSinCompartirDto() {
+    void consultaSolicitudesConservaEstadoYSinCompartirDto() {
         SolicitudPruebaDTO original = new SolicitudPruebaDTO("SOL-1", "PAC-1", "MED-1", "TAC",
                 Prioridad.URGENTE, "Dolor", "Descartar patología", LocalDateTime.of(2026, 11, 1, 10, 0),
                 EstadoSolicitud.PENDIENTE_CITACION, true, 6);
@@ -75,28 +73,30 @@ class CU08ConsultaSolicitudesTest {
         assertEquals("TAC", resultado.get(0).getTipoPruebaId());
         assertThrows(UnsupportedOperationException.class, resultado::clear);
         verify(prescripcionService).listarSolicitudesPorMedico("MED-1");
-        verifyNoInteractions(consultaAgendasRepository);
+        verifyNoInteractions(disponibilidadAgendaService);
     }
 
     @Test
-    void consultaSolicitudesExigeMedico() {
+    void consultaSolicitudesRechazaIdentificadorInvalidoYRespuestaNula() {
         assertThrows(IllegalArgumentException.class, () -> servicio.consultarSolicitudesPorMedico(null));
         assertThrows(IllegalArgumentException.class, () -> servicio.consultarSolicitudesPorMedico(" "));
-        verifyNoInteractions(prescripcionService, consultaAgendasRepository);
+        when(prescripcionService.listarSolicitudesPorMedico("MED-1")).thenReturn(null);
+        assertThrows(IllegalStateException.class, () -> servicio.consultarSolicitudesPorMedico("MED-1"));
+        verifyNoInteractions(disponibilidadAgendaService);
     }
 
     @Test
-    void consultaHuecosDisponiblesDelegaYDevuelveListaInmutable() {
+    void consultaHuecosDelegaEnDisponibilidadYDevuelveListaInmutable() {
         TurnoAgendaDTO turno = new TurnoAgendaDTO("A1#09:00", "A1", TipoRecurso.MEDICO, "MED-1", FECHA,
                 LocalTime.of(9, 0), LocalTime.of(9, 30), EstadoTurno.LIBRE, null, null);
-        when(consultaAgendasRepository.consultarAgendasDisponibles(TipoRecurso.MEDICO, "MED-1", FECHA))
+        when(disponibilidadAgendaService.consultarHuecosLibres(TipoRecurso.MEDICO, "MED-1", FECHA))
                 .thenReturn(List.of(turno));
 
         List<TurnoAgendaDTO> resultado = servicio.consultarAgendasDisponibles(TipoRecurso.MEDICO, "MED-1", FECHA);
 
         assertEquals(List.of(turno), resultado);
         assertThrows(UnsupportedOperationException.class, resultado::clear);
-        verify(consultaAgendasRepository).consultarAgendasDisponibles(TipoRecurso.MEDICO, "MED-1", FECHA);
+        verify(disponibilidadAgendaService).consultarHuecosLibres(TipoRecurso.MEDICO, "MED-1", FECHA);
         verifyNoInteractions(prescripcionService);
     }
 
@@ -108,22 +108,27 @@ class CU08ConsultaSolicitudesTest {
                 () -> servicio.consultarAgendasDisponibles(TipoRecurso.MEDICO, " ", FECHA));
         assertThrows(IllegalArgumentException.class,
                 () -> servicio.consultarAgendasDisponibles(TipoRecurso.MEDICO, "MED-1", null));
-        verifyNoInteractions(consultaAgendasRepository, prescripcionService);
+        verifyNoInteractions(disponibilidadAgendaService, prescripcionService);
     }
 
     @Test
-    void controladorDelegaConsultasAlServicio() {
-        ConsultaSolicitudesAgendasController controlador = new ConsultaSolicitudesAgendasController(consultaService);
-        List<SolicitudPruebaDTO> solicitudes = List.of();
-        List<TurnoAgendaDTO> turnos = List.of();
-        when(consultaService.consultarSolicitudesPorMedico("MED-1")).thenReturn(solicitudes);
-        when(consultaService.consultarAgendasDisponibles(TipoRecurso.SALA, "SALA-1", FECHA)).thenReturn(turnos);
+    void consultaHuecosUsaAgendaServiceRealYRespetaTurnosOcupadosYBloqueados() {
+        AgendaServiceImpl agendaService = new AgendaServiceImpl(
+                new FranjaRepositoryInMemory(), new TurnoRepositoryInMemory());
+        AgendaMedicaDTO franja = new AgendaMedicaDTO("A1", "MED-1", "TAC", FECHA,
+                LocalTime.of(9, 0), LocalTime.of(11, 0), 30);
+        agendaService.crearFranja(franja, TipoRecurso.MEDICO);
+        agendaService.ocuparTurno("A1#09:00", "CITA-1");
+        agendaService.bloquearTurno("A1#09:30", "Mantenimiento");
+        ConsultaSolicitudesAgendasServiceImpl servicioConAgendaReal =
+                new ConsultaSolicitudesAgendasServiceImpl(prescripcionService, agendaService);
 
-        assertEquals(solicitudes, controlador.consultarSolicitudesPorMedico("MED-1"));
-        assertEquals(turnos, controlador.consultarAgendasDisponibles(TipoRecurso.SALA, "SALA-1", FECHA));
+        List<TurnoAgendaDTO> resultado = servicioConAgendaReal.consultarAgendasDisponibles(
+                TipoRecurso.MEDICO, "MED-1", FECHA);
 
-        verify(consultaService).consultarSolicitudesPorMedico("MED-1");
-        verify(consultaService).consultarAgendasDisponibles(TipoRecurso.SALA, "SALA-1", FECHA);
-        verifyNoInteractions(prescripcionService, consultaAgendasRepository);
+        assertEquals(List.of("A1#10:00", "A1#10:30"), resultado.stream()
+                .map(TurnoAgendaDTO::idTurno)
+                .toList());
+        verifyNoInteractions(prescripcionService);
     }
 }
