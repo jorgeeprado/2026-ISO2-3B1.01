@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+/** Pruebas unitarias del servicio de consulta CU-08. */
 @ExtendWith(MockitoExtension.class)
 class ConsultaSolicitudesAgendasServiceImplTest {
 
