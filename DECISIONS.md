@@ -220,9 +220,55 @@
   - RN-02 se garantiza porque solo `CitacionAdministrativaService` ocupa o libera turnos por citas y marca entradas como citadas. La comprobación de roles corresponde a CU-18.
 - **Consecuencias:** Los saltos de orden quedan trazados, pero solo se guarda el motivo de la asignación y el de la última reprogramación.
 
+<<<<<<< Updated upstream
 ### D-027 · Consulta de solicitudes y disponibilidad de agendas (CU-08)
 - **Fecha:** 11/11/2026 · **Iteración:** 10 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
 - **Contexto:** CU-08 debe mostrar al médico sus solicitudes y los huecos disponibles sin duplicar la regla de disponibilidad de CU-14 ni acoplar módulos de negocio.
 - **Decisión:** `ConsultaSolicitudesAgendasServiceImpl` consulta las solicitudes mediante `IPrescripcionService` y delega los huecos libres en `DisponibilidadAgendaService.consultarHuecosLibres`. CU-08 no mantiene un repositorio propio de agendas y devuelve copias defensivas de los DTO mutables de solicitud.
 - **Motivo / Justificación:** Reutilizar el contrato común de CU-14 mantiene una única fuente de verdad para el estado y filtrado de turnos, y cumple RNF-09.
 - **Consecuencias:** Por D-025, CU-13 no modifica `EstadoSolicitud`; por tanto, una solicitud ya citada puede seguir apareciendo como `PENDIENTE_CITACION` en CU-08. CU-08 muestra el estado recibido de prescripción y no lo infiere ni lo modifica. Cualquier sincronización futura requiere un contrato acordado con el módulo de prescripción.
+=======
+---
+
+### D-027 · Segregación del Contrato de Autogestión de Citas (CU-01) y Estado Heredado de `ICitasAgendasService`
+- **Fecha:** 10/11/2026 · **Iteración:** 9 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** El contrato inicial `ICitasAgendasService` agrupa operaciones de autogestión de citas (CU-01), citación administrativa definitiva (CU-13) y reasignación urgente (CU-23). Implementar dicho contrato en CU-01 obligaba a lanzar `UnsupportedOperationException` en 4 de sus 9 métodos, vulnerando el Principio de Segregación de Interfaces (ISP) y el Principio de Sustitución de Liskov (LSP). Asimismo, sus firmas carecían del identificador del paciente consultante (`idPaciente`), imposibilitando verificar pertenencia y privacidad médica.
+- **Decisión:** 
+  1. Se define en `modulo-common-interfaces` el contrato específico y reducido `AutogestionCitasService` (sin prefijo húngaro `I`, conforme a D-012, D-019 y D-022), exclusivamente con los casos de uso propios de CU-01: `consultarMisCitas`, `consultarCita`, `solicitarCambioCita`, `solicitarCancelacionCita`, `confirmarAsistencia` y `listarMisSolicitudesPendientes`.
+  2. Todos los métodos de `AutogestionCitasService` reciben como primer parámetro obligatorio `idPaciente`.
+  3. `AutogestionCitasServiceImpl` implementa de forma pura `AutogestionCitasService` (0 métodos con `UnsupportedOperationException`).
+  4. `ICitasAgendasService` se declara formalmente como interfaz heredada y obsoleta (al igual que `CitaService` en D-022); no se modifica para preservar compatibilidad con código antiguo.
+- **Motivo / Justificación:** Cumplimiento riguroso de SOLID (ISP y LSP), garantía de privacidad asistencial y consistencia de nombres en la arquitectura del sistema.
+- **Consecuencias:** Clientes web o móviles del paciente dependen únicamente de `AutogestionCitasService`.
+
+---
+
+### D-028 · Consulta de Citas por Paciente en `ConsultaCitasService` y Persistencia
+- **Fecha:** 10/11/2026 · **Iteración:** 9 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** `ConsultaCitasService` únicamente exponía `listarCitasPorSolicitud(String idSolicitud)`. Al listar citas por paciente en CU-01, pasar el `idPaciente` a dicho método producía resultados vacíos con datos reales al no coincidir la clave de solicitud con la de paciente.
+- **Decisión:** 
+  1. Se añade `List<CitaDTO> listarCitasPorPaciente(String idPaciente)` a `ConsultaCitasService`.
+  2. Se implementa en `CitacionServiceImpl` delegando en `ICitaRepository.buscarPorPaciente(String idPaciente)`.
+  3. Se añade `buscarPorPaciente(String idPaciente)` a `ICitaRepository` y su implementación en `CitaRepositoryInMemory`, indexando y filtrando por `r.cita().getPacienteId()`.
+  4. La consulta devuelve copias defensivas de las citas en orden cronológico/creación.
+- **Motivo / Justificación:** Evitar acoplamiento indebido, dotar a la capa de consulta de acceso natural por titular de la historia clínica y asegurar el correcto funcionamiento con repositorios reales.
+- **Consecuencias:** Permite que CU-01 consulte de forma aislada y eficiente las citas del paciente sin requerir conocer previamente los identificadores de sus solicitudes clínicas.
+
+---
+
+### D-029 · Modelo de Solicitudes de Autogestión, Confirmación y Control de Duplicados (RN-02 / D-005)
+- **Fecha:** 10/11/2026 · **Iteración:** 9 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** Conforme a RN-02 y D-005, el paciente no ostenta potestad para modificar de forma inmediata huecos de agenda o citas en el sistema; solo Admisión (CU-13) puede consolidar asignaciones, reprogramaciones y cancelaciones definitivas. Se requiere además registrar la confirmación de asistencia como solicitud explícita, evitar peticiones duplicadas sobre una misma cita y capturar la fecha deseada en cambios.
+- **Decisión:** 
+  1. Se definen en `modulo-common-interfaces` los tipos compartidos `SolicitudCambioCitaDTO`, `TipoSolicitudCambio { CAMBIO, CANCELACION, CONFIRMACION }` y `EstadoSolicitudCambio { PENDIENTE, ACEPTADA, RECHAZADA }`.
+  2. Las operaciones `solicitarCambioCita`, `solicitarCancelacionCita` y `confirmarAsistencia` crean y persisten siempre una solicitud en estado `PENDIENTE` mediante `ISolicitudCambioRepository` y nunca modifican la cita en agenda de forma directa (RN-02).
+  3. `solicitarCambioCita` exige obligatoriamente una `fechaDeseada` futura y un motivo no vacío.
+  4. Todas las operaciones exigen que la cita esté activa (`PROGRAMADA` o `CONFIRMADA`), sea futura respecto al `Clock` inyectado, y pertenezca al paciente solicitante (si no le pertenece, se lanza la misma `IllegalArgumentException` que si la cita no existiese para evitar fuga de información).
+  5. Se impide registrar una nueva solicitud si ya consta una solicitud previa en estado `PENDIENTE` para dicha cita (`IllegalStateException`).
+  6. En todas las operaciones se valida que el paciente exista y se encuentre en estado activo (`isActivo() == true`, RN-08).
+  7. Los datos nulos o vacíos lanzan `IllegalArgumentException` (D-013 / D-021), erradicando el uso de `NullPointerException`.
+  8. La resolución administrativa de solicitudes (`ACEPTADA` / `RECHAZADA`) queda reservada para los flujos administrativos de Admisión en CU-13.
+- **Motivo / Justificación:** Respetar los límites de responsabilidad clínica y legal de RN-02, garantizar la trazabilidad de peticiones de pacientes y asegurar coherencia transaccional.
+- **Consecuencias:** Admisión dispone de un modelo uniforme de peticiones pendientes para procesar reprogramaciones y cancelaciones en el tablón de citación.
+
+>>>>>>> Stashed changes
