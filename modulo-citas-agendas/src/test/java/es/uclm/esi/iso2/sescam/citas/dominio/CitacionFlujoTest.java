@@ -25,6 +25,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pruebas de flujo del CU-13 sobre los DAOs en memoria, con las agendas (CU-14)
@@ -138,6 +139,58 @@ class CitacionFlujoTest {
         assertThrows(IllegalStateException.class, () -> citacion.asignarCita("S2", "TAC-M#08:30", "m"));
         assertThrows(IllegalStateException.class, () -> citacion.asignarCita("S3", "TAC-M#08:00", null));
         assertEquals(EstadoTurno.LIBRE, agendas.obtenerTurno("TAC-M#08:30").estado());
+    }
+
+    @Test
+    void cancelarYReasignarAsignaElHuecoAlSiguienteCandidatoYExcluyeLaSolicitudCancelada() {
+        Clock reloj = Clock.fixed(AHORA.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        String idTurno = "TAC-CU23#10:30";
+        agendas.crearFranja(new AgendaMedicaDTO("TAC-CU23", "sala-tac", "TAC", AHORA.toLocalDate(),
+                LocalTime.of(10, 30), LocalTime.of(11, 30), 30), TipoRecurso.SALA);
+
+        CitaDTO original = citacion.asignarCita("S2", idTurno, null);
+        citacion.cancelarCita(original.getId(), "Paciente cancela");
+
+        ReasignacionHuecosServiceImpl reasignacion =
+                new ReasignacionHuecosServiceImpl(agendas, listaEspera, citacion, reloj);
+        CitaDTO reasignada = reasignacion.reasignarHuecoLiberado(idTurno, "S2").orElseThrow();
+
+        assertEquals("S3", citas.buscarPorId(reasignada.getId()).orElseThrow().idSolicitud());
+        assertEquals(EstadoEntradaEspera.EN_ESPERA, listaEspera.obtenerEntrada("S2").estado());
+        assertEquals(reasignada.getId(), listaEspera.obtenerEntrada("S3").idCita());
+        assertEquals(EstadoTurno.OCUPADO, agendas.obtenerTurno(idTurno).estado());
+    }
+
+    @Test
+    void reasignacionDevuelveVacioCuandoSoloQuedaLaSolicitudCancelada() {
+        Clock reloj = Clock.fixed(AHORA.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        AgendaServiceImpl agendaLocal = new AgendaServiceImpl();
+        ListaEsperaServiceImpl listaLocal = new ListaEsperaServiceImpl(new ListaEsperaRepositoryInMemory(),
+                agendaLocal, agendaLocal, reloj);
+        CitaRepositoryInMemory citasLocales = new CitaRepositoryInMemory();
+        CitacionServiceImpl citacionLocal = new CitacionServiceImpl(citasLocales, agendaLocal, agendaLocal,
+                listaLocal, reloj, CitacionServiceImpl.generadorSecuencial());
+        String idTurno = "SOLO-CU23#10:30";
+        agendaLocal.crearFranja(new AgendaMedicaDTO("SOLO-CU23", "sala-solo", "SOLO", AHORA.toLocalDate(),
+                LocalTime.of(10, 30), LocalTime.of(11, 0), 30), TipoRecurso.SALA);
+        listaLocal.inscribir(new SolicitudPruebaDTO("SOL-SOLO", "pac-SOL-SOLO", "med-1", "SOLO",
+                Prioridad.ORDINARIO, "Indicación", "Justificación", LocalDateTime.of(2026, 10, 1, 10, 0),
+                EstadoSolicitud.PENDIENTE_CITACION, false, null));
+
+        CitaDTO original = citacionLocal.asignarCita("SOL-SOLO", idTurno, null);
+        citacionLocal.cancelarCita(original.getId(), "Paciente cancela");
+
+        ReasignacionHuecosServiceImpl reasignacion =
+                new ReasignacionHuecosServiceImpl(agendaLocal, listaLocal, citacionLocal, reloj);
+
+        assertTrue(reasignacion.reasignarHuecoLiberado(idTurno, "SOL-SOLO").isEmpty());
+        assertEquals(EstadoEntradaEspera.EN_ESPERA, listaLocal.obtenerEntrada("SOL-SOLO").estado());
+        assertEquals(EstadoTurno.LIBRE, agendaLocal.obtenerTurno(idTurno).estado());
+    }
+
+    @Test
+    void proponerCandidatosAceptaIntegerMaxValueComoLimite() {
+        assertEquals(3, listaEspera.proponerCandidatos("TAC-M#08:00", Integer.MAX_VALUE).size());
     }
 
     private static AgendaMedicaDTO franja(String id, String recurso, String prueba, LocalDate fecha, int hora) {

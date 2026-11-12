@@ -7,6 +7,7 @@ import es.uclm.esi.iso2.sescam.common.enums.EstadoTurno;
 import es.uclm.esi.iso2.sescam.common.interfaces.CandidatosListaEsperaService;
 import es.uclm.esi.iso2.sescam.common.interfaces.CitacionAdministrativaService;
 import es.uclm.esi.iso2.sescam.common.interfaces.DisponibilidadAgendaService;
+import es.uclm.esi.iso2.sescam.common.interfaces.ReasignacionHuecosService;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -15,7 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /** Servicio de dominio del CU-23 para reasignar un turno libre en las siguientes 48 horas. */
-public class ReasignacionHuecosServiceImpl {
+public class ReasignacionHuecosServiceImpl implements ReasignacionHuecosService {
 
     static final int SIN_LIMITE = Integer.MAX_VALUE;
 
@@ -44,6 +45,7 @@ public class ReasignacionHuecosServiceImpl {
      * @return la cita creada, o vacío si el turno no está en la ventana estricta de 48 horas
      *         o no hay solicitudes compatibles en espera
      */
+    @Override
     public Optional<CitaDTO> reasignarHuecoLiberado(String idTurno, String idSolicitudCancelada) {
         validarTexto(idTurno, "El identificador del turno es obligatorio");
         validarTexto(idSolicitudCancelada, "El identificador de la solicitud cancelada es obligatorio");

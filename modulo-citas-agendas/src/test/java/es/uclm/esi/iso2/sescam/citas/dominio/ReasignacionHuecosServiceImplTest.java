@@ -23,15 +23,16 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,7 +71,7 @@ class ReasignacionHuecosServiceImplTest {
     }
 
     @Test
-        void reasignaAlPrimerCandidatoElegibleYDejaLaPersistenciaEnCitacionAdministrativa() {
+    void reasignaAlPrimerCandidatoElegibleYDejaLaPersistenciaEnCitacionAdministrativa() {
         TurnoAgendaDTO turno = turno(FECHA, LocalTime.of(11, 0), EstadoTurno.LIBRE);
         EntradaListaEsperaDTO primero = entrada("SOL-1", Prioridad.URGENTE);
         EntradaListaEsperaDTO segundo = entrada("SOL-2", Prioridad.ORDINARIO);
@@ -78,10 +79,10 @@ class ReasignacionHuecosServiceImplTest {
         citaCreada.setId("CITA-1");
         when(disponibilidad.obtenerTurno(ID_TURNO)).thenReturn(turno);
         when(candidatos.proponerCandidatos(ID_TURNO, Integer.MAX_VALUE)).thenReturn(List.of(primero, segundo));
-                String motivo = "CU-23: reasignación urgente tras cancelar la solicitud SOL-CANCELADA";
-                when(citacion.asignarCita("SOL-1", ID_TURNO, motivo)).thenReturn(citaCreada);
+        String motivo = "CU-23: reasignación urgente tras cancelar la solicitud SOL-CANCELADA";
+        when(citacion.asignarCita("SOL-1", ID_TURNO, motivo)).thenReturn(citaCreada);
 
-                Optional<CitaDTO> resultado = servicio.reasignarHuecoLiberado(ID_TURNO, "SOL-CANCELADA");
+        Optional<CitaDTO> resultado = servicio.reasignarHuecoLiberado(ID_TURNO, "SOL-CANCELADA");
 
         assertEquals(Optional.of(citaCreada), resultado);
         InOrder orden = inOrder(disponibilidad, candidatos, citacion);
@@ -97,7 +98,7 @@ class ReasignacionHuecosServiceImplTest {
         when(candidatos.proponerCandidatos(ID_TURNO, Integer.MAX_VALUE)).thenReturn(List.of());
 
         assertEquals(Optional.empty(), servicio.reasignarHuecoLiberado(ID_TURNO, "SOL-CANCELADA"));
-        verify(citacion, never()).asignarCita("SOL-1", ID_TURNO, null);
+        verifyNoInteractions(citacion);
     }
 
     @Test
@@ -179,7 +180,7 @@ class ReasignacionHuecosServiceImplTest {
         when(disponibilidad.obtenerTurno(ID_TURNO)).thenReturn(
                 turno(FECHA, LocalTime.of(11, 0), EstadoTurno.LIBRE));
         when(candidatos.proponerCandidatos(ID_TURNO, Integer.MAX_VALUE)).thenReturn(
-                java.util.Arrays.asList((EntradaListaEsperaDTO) null));
+                Arrays.asList((EntradaListaEsperaDTO) null));
 
         assertThrows(IllegalStateException.class,
                 () -> servicio.reasignarHuecoLiberado(ID_TURNO, "SOL-CANCELADA"));
@@ -191,13 +192,17 @@ class ReasignacionHuecosServiceImplTest {
         when(disponibilidad.obtenerTurno(ID_TURNO)).thenReturn(
                 turno(FECHA, LocalTime.of(11, 0), EstadoTurno.LIBRE));
         when(candidatos.proponerCandidatos(ID_TURNO, Integer.MAX_VALUE))
-                .thenReturn(List.of(entrada("SOL-1", Prioridad.URGENTE)));
+                .thenReturn(List.of(entrada("SOL-1", Prioridad.URGENTE),
+                        entrada("SOL-2", Prioridad.ORDINARIO)));
         when(citacion.asignarCita("SOL-1", ID_TURNO,
                 "CU-23: reasignación urgente tras cancelar la solicitud SOL-CANCELADA"))
                 .thenThrow(new IllegalStateException("El turno ya no está libre"));
 
         assertThrows(IllegalStateException.class,
                 () -> servicio.reasignarHuecoLiberado(ID_TURNO, "SOL-CANCELADA"));
+        verify(citacion).asignarCita("SOL-1", ID_TURNO,
+                "CU-23: reasignación urgente tras cancelar la solicitud SOL-CANCELADA");
+        verifyNoMoreInteractions(citacion);
     }
 
     @Test

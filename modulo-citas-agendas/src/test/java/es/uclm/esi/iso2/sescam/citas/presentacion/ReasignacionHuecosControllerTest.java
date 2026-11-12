@@ -1,7 +1,7 @@
 package es.uclm.esi.iso2.sescam.citas.presentacion;
 
-import es.uclm.esi.iso2.sescam.citas.dominio.ReasignacionHuecosServiceImpl;
 import es.uclm.esi.iso2.sescam.common.dto.CitaDTO;
+import es.uclm.esi.iso2.sescam.common.interfaces.ReasignacionHuecosService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
 class ReasignacionHuecosControllerTest {
 
     @Mock
-    private ReasignacionHuecosServiceImpl servicio;
+    private ReasignacionHuecosService servicio;
 
     @Test
     void constructorExigeServicio() {
