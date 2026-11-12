@@ -226,3 +226,15 @@
 - **Decisión:** `ConsultaSolicitudesAgendasServiceImpl` consulta las solicitudes mediante `IPrescripcionService` y delega los huecos libres en `DisponibilidadAgendaService.consultarHuecosLibres`. CU-08 no mantiene un repositorio propio de agendas y devuelve copias defensivas de los DTO mutables de solicitud.
 - **Motivo / Justificación:** Reutilizar el contrato común de CU-14 mantiene una única fuente de verdad para el estado y filtrado de turnos, y cumple RNF-09.
 - **Consecuencias:** Por D-025, CU-13 no modifica `EstadoSolicitud`; por tanto, una solicitud ya citada puede seguir apareciendo como `PENDIENTE_CITACION` en CU-08. CU-08 muestra el estado recibido de prescripción y no lo infiere ni lo modifica. Cualquier sincronización futura requiere un contrato acordado con el módulo de prescripción.
+
+### D-031 · Reasignación de huecos liberados (CU-23)
+- **Fecha:** 12/11/2026 · **Iteración:** 17 · **Responsables:** Pedro de la Fuente, Pablo Sánchez
+- **Contexto:** Al cancelar una cita, CU-13 libera el turno y reincorpora la solicitud a la lista de espera. CU-23 permite ofrecer explícitamente ese hueco a otra solicitud compatible sin alterar RNF-09 ni duplicar la persistencia de CU-13.
+- **Decisión:**
+  - Solo se consideran turnos cuyo inicio sea estrictamente posterior al instante actual y estrictamente anterior a las 48 horas siguientes, calculados con el `Clock` inyectado. Se excluyen el instante exacto de 48 horas y los turnos ya empezados.
+  - Se excluye de la selección la solicitud cancelada, aunque `cancelarCita` ya la haya reincorporado a la lista de espera.
+  - Se conserva el orden de candidatos de RN-01. Si se selecciona una solicitud distinta del primer candidato, se proporciona el motivo obligatorio exigido por RN-01/RN-02.
+  - La persistencia se realiza únicamente mediante `CitacionAdministrativaService.asignarCita` (CU-13). Si falla, se propaga el error y no se intenta asignar a otro candidato.
+  - La invocación de CU-23 es explícita y no está enlazada automáticamente a `cancelarCita`.
+- **Motivo / Justificación:** Mantener una ventana temporal determinista, respetar el orden clínico, y asegurar que la ocupación del turno y la actualización de la lista sigan bajo la única vía administrativa de CU-13.
+- **Consecuencias:** Si no hay candidatos elegibles, el hueco permanece libre. La cancelación por sí sola no inicia la reasignación; el cliente debe invocar CU-23 expresamente.
