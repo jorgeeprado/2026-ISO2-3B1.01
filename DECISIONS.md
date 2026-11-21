@@ -238,3 +238,16 @@
   - La invocación de CU-23 es explícita y no está enlazada automáticamente a `cancelarCita`.
 - **Motivo / Justificación:** Mantener una ventana temporal determinista, respetar el orden clínico, y asegurar que la ocupación del turno y la actualización de la lista sigan bajo la única vía administrativa de CU-13.
 - **Consecuencias:** Si no hay candidatos elegibles, el hueco permanece libre. La cancelación por sí sola no inicia la reasignación; el cliente debe invocar CU-23 expresamente.
+
+### D-032 · Reestructuración física de la arquitectura Cliente-Servidor (Frontend / Backend)
+- **Fecha:** 22/11/2026 · **Iteración:** 18 · **Responsables:** Jorge Prado Novillo (Coordinador)
+- **Contexto:** La profesora de prácticas requiere reflejar explícitamente en la estructura física del repositorio la arquitectura Cliente-Servidor exigida en el enunciado y en `RNF-11`, evitando la disposición plana previa de los submódulos en la raíz.
+- **Decisión:**
+  - Se reorganiza el repositorio en tres bloques jerárquicos principales:
+    1. `modulo-common-interfaces/`: Se mantiene en la raíz como capa transversal compartida de contratos (DTOs, Enums, Interfaces de Servicios y Puertos) entre Cliente y Servidor (RNF-09).
+    2. `backend/`: Nuevo módulo contenedor POM (`backend/pom.xml`) que agrupa y gestiona los 7 submódulos de negocio del servidor (`modulo-analitica-estadisticas`, `modulo-catalogo-configuracion`, `modulo-citas-agendas`, `modulo-notificaciones-calidad`, `modulo-prescripcion-seguimiento`, `modulo-realizacion-informes-dicom` y `modulo-usuarios-seguridad`).
+    3. `frontend/`: Nuevo submódulo JAR que modela la capa Cliente del sistema, compuesto por `SescamBackendGateway` (gateway desacoplado) y `SescamClientView` (vistas de usuario por rol).
+  - **Aislamiento estricto de dependencias:** `frontend` depende ÚNICAMENTE de `modulo-common-interfaces` (y dependencias de test JUnit 5 / Mockito). Se prohíbe cualquier acoplamiento directo entre `frontend` y las implementaciones de `backend/`.
+  - Se eliminó el fichero huérfano sin uso `EstadoDetalleSolicitudDTO.java` (0 bytes).
+- **Motivo / Justificación:** Cumplimiento normativo estricto de `RNF-11` (Cliente-Servidor) y `RNF-09` (Desacoplamiento e inversión de dependencias), facilitando despliegues independientes y clientes multicanal (Web, Escritorio, Móvil).
+- **Consecuencias:** Las rutas relativas de los submódulos de negocio cambian a `backend/<submodulo>`. Los paquetes Java internos `es.uclm.esi.iso2.sescam.*` se mantienen intactos, sin ninguna regresión en la lógica de negocio ni en los tests unitarios.

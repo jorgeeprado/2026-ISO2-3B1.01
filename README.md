@@ -27,24 +27,27 @@ Grado en Ingeniería Informática — **Escuela Superior de Informática (UCLM, 
 
 ## 🏛️ Arquitectura del Software (Spec-Driven Development)
 
-El sistema está diseñado bajo el principio de **máxima cohesión y mínimo acoplamiento** exigido por la asignatura, estructurado en **8 submódulos Maven**:
+El sistema está diseñado bajo el principio de **máxima cohesión y mínimo acoplamiento** exigido por la asignatura, estructurado bajo una **arquitectura Cliente-Servidor (RNF-11)** en módulos Maven:
 
 ```
 2026-ISO2-3B1.01/
-├── pom.xml (Parent POM con dependencias y gestión centralizada)
+├── pom.xml (Parent POM con dependencias y gestión centralizada de los 3 bloques)
 ├── CONTEXT.md (Guardarraíl: dominio SESCAM, actores, reglas RN-01..08, RNF ISO 25010)
-├── DECISIONS.md (Guardarraíl: Architecture Decision Records D-001..08)
+├── DECISIONS.md (Guardarraíl: Architecture Decision Records D-001..32)
 ├── PLAN.md (Guardarraíl: planificación PUD de 24 iteraciones, costes y releases SemVer)
 │
 ├── modulo-common-interfaces/       <-- CONTRATOS COMPARTIDOS (DTOs, Enums, Interfaces de Servicios)
 │
-├── modulo-citas-agendas/           <-- Módulo 1 (Pedro y Pablo)
-├── modulo-prescripcion-seguimiento/<-- Módulo 2 (Inés)
-├── modulo-realizacion-informes-dicom/ <-- Módulo 3 (Jorge)
-├── modulo-notificaciones-calidad/  <-- Módulo 4 (Marcos)
-├── modulo-usuarios-seguridad/      <-- Módulo 5 (Carlos)
-├── modulo-catalogo-configuracion/  <-- Módulo 6 (Pedro y Pablo)
-└── modulo-analitica-estadisticas/  <-- Módulo 7 (Javier)
+├── backend/                        <-- SERVIDOR (Contenedor de los 7 módulos de negocio)
+│   ├── modulo-citas-agendas/           <-- Módulo 1 (Pedro y Pablo)
+│   ├── modulo-prescripcion-seguimiento/<-- Módulo 2 (Inés)
+│   ├── modulo-realizacion-informes-dicom/ <-- Módulo 3 (Jorge)
+│   ├── modulo-notificaciones-calidad/  <-- Módulo 4 (Marcos)
+│   ├── modulo-usuarios-seguridad/      <-- Módulo 5 (Carlos)
+│   ├── modulo-catalogo-configuracion/  <-- Módulo 6 (Pedro y Pablo)
+│   └── modulo-analitica-estadisticas/  <-- Módulo 7 (Javier)
+│
+└── frontend/                       <-- CLIENTE (Gateway desacoplado y UI multiplataforma)
 ```
 
 > ⚠️ **Regla de oro arquitectónica (RNF-09):**  

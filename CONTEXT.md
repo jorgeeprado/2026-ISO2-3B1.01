@@ -73,16 +73,17 @@ El Servicio de Salud de Castilla-La Mancha (SESCAM) requiere un sistema integral
 
 ## 4. Descomposición Modular y Reparto de Casos de Uso (24 CDUs)
 
-| Módulo Maven | Responsable(s) | Casos de Uso Asignados |
+| Capa / Módulo Maven | Responsable(s) | Casos de Uso Asignados |
 | :--- | :--- | :--- |
-| **`modulo-common-interfaces`** | Todo el equipo | DTOs, Enums y Contratos de Servicio Java transversales |
-| **`modulo-citas-agendas`** (Módulo 1) | Pedro de la Fuente, Pablo Sánchez | **CU-01:** Consultar/autogestionar citas<br>**CU-08:** Consultar solicitudes/agendas<br>**CU-13:** Asignar/reprogramar citas definitivamente<br>**CU-14:** Administrar agendas diarias de médicos y salas<br>**CU-15:** Gestionar listas de espera y huecos<br>**CU-23:** Reasignación inteligente de huecos liberados (<48h) |
-| **`modulo-prescripcion-seguimiento`** (Módulo 2) | Inés Ballesteros | **CU-05:** Consultar información de seguimiento periódico<br>**CU-06:** Prescribir prueba diagnóstica puntual<br>**CU-07:** Prescribir seguimiento periódico automatizado |
-| **`modulo-realizacion-informes-dicom`** (Módulo 3) | Jorge Prado Novillo | **CU-03:** Consultar historial de pruebas realizadas<br>**CU-09:** Crear/consultar informes clínicos y visor DICOM<br>**CU-10:** Registrar realización de prueba e incidencias<br>**CU-22:** Firmar consentimiento informado y checklist seguridad |
-| **`modulo-notificaciones-calidad`** (Módulo 4) | Marcos Díaz-Pavón Romero | **CU-02:** Emitir/consultar notificaciones y recordatorios<br>**CU-04:** Comunicar incidencias y encuestas de satisfacción<br>**CU-24:** Emitir alerta clínica por hallazgo radiológico crítico |
-| **`modulo-usuarios-seguridad`** (Módulo 5) | Carlos de la Dueña Marques | **CU-12:** Alta, modificación y baja lógica de pacientes<br>**CU-18:** Administrar roles y permisos de usuarios (RBAC)<br>**CU-19:** Auditar actividades y accesos a datos clínicos<br>**CU-20:** Integración técnica con sistemas externos (SSO/HCE) |
-| **`modulo-catalogo-configuracion`** (Módulo 6) | Pedro de la Fuente, Pablo Sánchez | **CU-17:** Configurar catálogo de pruebas y parámetros del sistema |
-| **`modulo-analitica-estadisticas`** (Módulo 7) | Javier Gómez-Lobo Ramírez | **CU-11:** Consultar estadísticas de prescripción médica<br>**CU-16:** Generar informes operativos de ocupación y demoras<br>**CU-21:** Generar estadísticas globales y cuadros de mando |
+| **`modulo-common-interfaces`** (Raíz) | Todo el equipo | DTOs, Enums y Contratos de Servicio Java transversales |
+| **`frontend`** (Cliente) | Capa Presentación | Gateway cliente desacoplado (`SescamBackendGateway`) y vistas por rol (`SescamClientView`) |
+| **`backend/modulo-citas-agendas`** (Módulo 1) | Pedro de la Fuente, Pablo Sánchez | **CU-01:** Consultar/autogestionar citas<br>**CU-08:** Consultar solicitudes/agendas<br>**CU-13:** Asignar/reprogramar citas definitivamente<br>**CU-14:** Administrar agendas diarias de médicos y salas<br>**CU-15:** Gestionar listas de espera y huecos<br>**CU-23:** Reasignación inteligente de huecos liberados (<48h) |
+| **`backend/modulo-prescripcion-seguimiento`** (Módulo 2) | Inés Ballesteros | **CU-05:** Consultar información de seguimiento periódico<br>**CU-06:** Prescribir prueba diagnóstica puntual<br>**CU-07:** Prescribir seguimiento periódico automatizado |
+| **`backend/modulo-realizacion-informes-dicom`** (Módulo 3) | Jorge Prado Novillo | **CU-03:** Consultar historial de pruebas realizadas<br>**CU-09:** Crear/consultar informes clínicos y visor DICOM<br>**CU-10:** Registrar realización de prueba e incidencias<br>**CU-22:** Firmar consentimiento informado y checklist seguridad |
+| **`backend/modulo-notificaciones-calidad`** (Módulo 4) | Marcos Díaz-Pavón Romero | **CU-02:** Emitir/consultar notificaciones y recordatorios<br>**CU-04:** Comunicar incidencias y encuestas de satisfacción<br>**CU-24:** Emitir alerta clínica por hallazgo radiológico crítico |
+| **`backend/modulo-usuarios-seguridad`** (Módulo 5) | Carlos de la Dueña Marques | **CU-12:** Alta, modificación y baja lógica de pacientes<br>**CU-18:** Administrar roles y permisos de usuarios (RBAC)<br>**CU-19:** Auditar actividades y accesos a datos clínicos<br>**CU-20:** Integración técnica con sistemas externos (SSO/HCE) |
+| **`backend/modulo-catalogo-configuracion`** (Módulo 6) | Pedro de la Fuente, Pablo Sánchez | **CU-17:** Configurar catálogo de pruebas y parámetros del sistema |
+| **`backend/modulo-analitica-estadisticas`** (Módulo 7) | Javier Gómez-Lobo Ramírez | **CU-11:** Consultar estadísticas de prescripción médica<br>**CU-16:** Generar informes operativos de ocupación y demoras<br>**CU-21:** Generar estadísticas globales y cuadros de mando |
 
 ---
 

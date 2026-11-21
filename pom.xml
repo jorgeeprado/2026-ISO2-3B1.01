@@ -24,17 +24,14 @@
     </properties>
 
     <modules>
-        <!-- Módulo transversal de Contratos, DTOs y Servicios compartidos -->
+        <!-- Capa transversal compartida de Contratos, DTOs y Puertos (Cliente y Servidor) -->
         <module>modulo-common-interfaces</module>
 
-        <!-- Módulos de negocio (desacoplados, dependen únicamente de common-interfaces) -->
-        <module>modulo-citas-agendas</module>
-        <module>modulo-prescripcion-seguimiento</module>
-        <module>modulo-realizacion-informes-dicom</module>
-        <module>modulo-notificaciones-calidad</module>
-        <module>modulo-usuarios-seguridad</module>
-        <module>modulo-catalogo-configuracion</module>
-        <module>modulo-analitica-estadisticas</module>
+        <!-- Capa Servidor: Contenedor de los 7 módulos de negocio (RNF-11) -->
+        <module>backend</module>
+
+        <!-- Capa Cliente: Submódulo cliente desacoplado (RNF-11) -->
+        <module>frontend</module>
     </modules>
 
     <dependencyManagement>
