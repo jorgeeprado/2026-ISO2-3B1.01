@@ -1,12 +1,18 @@
 package es.uclm.esi.iso2.sescam.usuarios;
 
+import es.uclm.esi.iso2.sescam.common.dto.AuditoriaAccesoDTO;
 import es.uclm.esi.iso2.sescam.common.dto.PacienteDTO;
 import es.uclm.esi.iso2.sescam.common.dto.UsuarioDTO;
 import es.uclm.esi.iso2.sescam.common.enums.RolUsuario;
+import es.uclm.esi.iso2.sescam.common.interfaces.IAuditoriaService;
 import es.uclm.esi.iso2.sescam.common.ports.ISsoClient;
+import es.uclm.esi.iso2.sescam.usuarios.dominio.AuditoriaService;
 import es.uclm.esi.iso2.sescam.usuarios.dominio.UsuariosSeguridadService;
+import es.uclm.esi.iso2.sescam.usuarios.persistencia.AuditoriaRepositoryInMemory;
+import es.uclm.esi.iso2.sescam.usuarios.persistencia.IAuditoriaRepository;
 import es.uclm.esi.iso2.sescam.usuarios.persistencia.PacienteRepositoryInMemory;
 import es.uclm.esi.iso2.sescam.usuarios.persistencia.UsuarioRepositoryInMemory;
+import es.uclm.esi.iso2.sescam.usuarios.presentacion.AuditoriaController;
 import es.uclm.esi.iso2.sescam.usuarios.presentacion.PacienteController;
 import es.uclm.esi.iso2.sescam.usuarios.presentacion.UsuariosSeguridadController;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,13 +23,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Pruebas de Integración y Humo :: Módulo 5 - Usuarios y Seguridad (CU-12 / CU-18 / RBAC / RN-05 / RN-08)")
+@DisplayName("Pruebas de Integración y Humo :: Módulo 5 - Usuarios y Seguridad (CU-12 / CU-18 / CU-19 / RBAC / RN-05 / RN-07 / RN-08)")
 class ModuloUsuariosSeguridadTest {
 
     @Mock
@@ -45,7 +53,7 @@ class ModuloUsuariosSeguridadTest {
     }
 
     @Test
-    @DisplayName("Verificación de inicialización y constantes de roles RBAC")
+    @DisplayName("Verificación de inicialización del módulo y constantes de roles RBAC")
     void testModuloUsuariosInitialized() {
         assertNotNull(RolUsuario.ADMIN_SISTEMA);
         assertNotNull(RolUsuario.ADMINISTRATIVO_ADMISION);
@@ -139,5 +147,73 @@ class ModuloUsuariosSeguridadTest {
         boolean bajaExitosa = pacienteController.darBajaLogicaPaciente(creado.getId());
         assertTrue(bajaExitosa);
         assertFalse(pacienteController.esPacienteActivo(creado.getId()), "El paciente debe figurar inactivo tras la baja lógica");
+    }
+
+    @Test
+    @DisplayName("Flujo Integrado E2E CU-19: Registro síncrono, filtrado, exportación e inmutabilidad estricta (RN-07 / RNF-06)")
+    void testFlujoCompletoAuditoriaClinicaInmutable() {
+        IAuditoriaRepository repository = new AuditoriaRepositoryInMemory();
+        IAuditoriaService serviceAuditoria = new AuditoriaService(repository);
+        AuditoriaController controllerAuditoria = new AuditoriaController(serviceAuditoria);
+
+        LocalDateTime inicioJornada = LocalDateTime.now().minusMinutes(10);
+
+        // 1. Simulación de accesos asistenciales síncronos sobre datos clínicos
+        // Acción 1: Facultativo radiólogo consulta imagen DICOM
+        controllerAuditoria.registrarAccesoClinico(
+                "medico.radiologo", "PAC-101", "LECTURA", "SERIE_IMAGENES_DICOM", "10.20.1.10"
+        );
+
+        // Acción 2: Facultativo redacta y firma informe diagnóstico
+        controllerAuditoria.registrarAccesoClinico(
+                "medico.radiologo", "PAC-101", "FIRMA", "INFORME_DIAGNOSTICO", "10.20.1.10"
+        );
+
+        // Acción 3: Personal administrativo consulta antecedentes para citación
+        controllerAuditoria.registrarAccesoClinico(
+                "admision.central", "PAC-102", "LECTURA", "HISTORIA_CLINICA", "10.20.2.5"
+        );
+
+        // Acción 4: Paciente firma digitalmente consentimiento informado
+        controllerAuditoria.registrarAccesoClinico(
+                "paciente.titular", "PAC-101", "FIRMA", "CONSENTIMIENTO_INFORMADO", "85.60.10.4"
+        );
+
+        // 2. Verificación de almacenamiento síncrono y recuento acumulado
+        assertEquals(4, repository.contar(), "Deben constar exactamente 4 trazas registradas síncronamente");
+
+        // 3. Inspección médico-legal de accesos para el paciente PAC-101
+        List<AuditoriaAccesoDTO> trazasPac101 = controllerAuditoria.consultarAuditorias(
+                inicioJornada, LocalDateTime.now().plusMinutes(5), "PAC-101"
+        );
+        assertEquals(3, trazasPac101.size(), "PAC-101 debe tener 3 accesos registrados");
+
+        // 4. Inspección de actividades por usuario y tipo de acción
+        List<AuditoriaAccesoDTO> accionesMedico = controllerAuditoria.consultarAuditoriasPorUsuario("medico.radiologo");
+        assertEquals(2, accionesMedico.size(), "El radiólogo debe tener 2 eventos registrados");
+
+        List<AuditoriaAccesoDTO> firmas = controllerAuditoria.consultarAuditoriasPorAccion("FIRMA");
+        assertEquals(2, firmas.size(), "Deben constar 2 acciones de tipo FIRMA");
+
+        // 5. Exportación para auditoría externa / regulador sanitario (AEPD / SESCAM)
+        String csv = controllerAuditoria.exportarAuditoriasCsv(inicioJornada, LocalDateTime.now().plusMinutes(5), "PAC-101");
+        assertNotNull(csv);
+        assertTrue(csv.startsWith("ID,TIMESTAMP,USUARIO_ID,ROL_USUARIO,PACIENTE_ID,ACCION,RECURSO,IP_ORIGEN\n"));
+        assertTrue(csv.contains("PAC-101"));
+        assertTrue(csv.contains("SERIE_IMAGENES_DICOM"));
+        assertTrue(csv.contains("INFORME_DIAGNOSTICO"));
+        assertTrue(csv.contains("CONSENTIMIENTO_INFORMADO"));
+
+        // 6. Verificación estricta de RN-07 / RNF-06 (No repudio e inmutabilidad):
+        AuditoriaAccesoDTO traza = trazasPac101.get(0);
+        boolean modificado = controllerAuditoria.intentarModificarRegistro(traza);
+        assertFalse(modificado, "RN-07 exige bloquear cualquier intento de modificación de trazas");
+
+        boolean eliminado = controllerAuditoria.intentarEliminarRegistro(traza.getId());
+        assertFalse(eliminado, "RN-07 exige bloquear cualquier intento de borrado de trazas");
+
+        assertThrows(UnsupportedOperationException.class, () -> repository.actualizar(traza));
+        assertThrows(UnsupportedOperationException.class, () -> repository.eliminar(traza.getId()));
+        assertThrows(UnsupportedOperationException.class, () -> repository.vaciar());
     }
 }
