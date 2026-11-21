@@ -16,6 +16,7 @@ public class EstadisticaOperativaDTO implements Serializable {
     private int totalCitasCanceladas;
     private double tiempoMedioEsperaDias;
     private double porcentajeOcupacionAgendas;
+    private double porcentajeCancelaciones;
     private int solicitudesPendientesEnListaEspera;
 
     public EstadisticaOperativaDTO() {}
@@ -55,7 +56,9 @@ public class EstadisticaOperativaDTO implements Serializable {
     public double getPorcentajeOcupacionAgendas() { return porcentajeOcupacionAgendas; }
     public void setPorcentajeOcupacionAgendas(double porcentajeOcupacionAgendas) { this.porcentajeOcupacionAgendas = porcentajeOcupacionAgendas; }
 
+    public double getPorcentajeCancelaciones() { return porcentajeCancelaciones; }
+    public void setPorcentajeCancelaciones(double porcentajeCancelaciones) { this.porcentajeCancelaciones = porcentajeCancelaciones; }
+
     public int getSolicitudesPendientesEnListaEspera() { return solicitudesPendientesEnListaEspera; }
     public void setSolicitudesPendientesEnListaEspera(int solicitudesPendientesEnListaEspera) { this.solicitudesPendientesEnListaEspera = solicitudesPendientesEnListaEspera; }
 }
-

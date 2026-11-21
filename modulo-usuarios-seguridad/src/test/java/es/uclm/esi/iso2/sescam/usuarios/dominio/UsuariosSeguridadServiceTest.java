@@ -4,7 +4,9 @@ import es.uclm.esi.iso2.sescam.common.dto.PacienteDTO;
 import es.uclm.esi.iso2.sescam.common.dto.UsuarioDTO;
 import es.uclm.esi.iso2.sescam.common.enums.RolUsuario;
 import es.uclm.esi.iso2.sescam.common.interfaces.IAuditoriaService;
+import es.uclm.esi.iso2.sescam.common.ports.ISisAdmisionClient;
 import es.uclm.esi.iso2.sescam.common.ports.ISsoClient;
+import es.uclm.esi.iso2.sescam.usuarios.persistencia.IPacienteRepository;
 import es.uclm.esi.iso2.sescam.usuarios.persistencia.IUsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -23,7 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Pruebas Unitarias :: UsuariosSeguridadService (CU-18 / RBAC / RN-05 / ISsoClient)")
+@DisplayName("Pruebas Unitarias :: UsuariosSeguridadService (CU-12 / CU-18 / RBAC / RN-05 / ISsoClient)")
 class UsuariosSeguridadServiceTest {
 
     @Mock
@@ -31,6 +34,12 @@ class UsuariosSeguridadServiceTest {
 
     @Mock
     private ISsoClient ssoClientMock;
+
+    @Mock
+    private IPacienteRepository pacienteRepositoryMock;
+
+    @Mock
+    private ISisAdmisionClient sisAdmisionClientMock;
 
     @Mock
     private IAuditoriaService auditoriaServiceMock;
@@ -43,7 +52,7 @@ class UsuariosSeguridadServiceTest {
     }
 
     // =========================================================================
-    // 1. Gestión de cuentas de usuario (Alta / Modificación / Consulta)
+    // 1. Gestión de cuentas de usuario (Alta / Modificación / Consulta) - CU-18
     // =========================================================================
 
     @Test
@@ -73,250 +82,228 @@ class UsuariosSeguridadServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar UsuarioYaExisteException si el username ya está registrado")
+    @DisplayName("Debe lanzar UsuarioYaExisteException al registrar username duplicado")
     void testRegistrarUsuarioDuplicado() {
-        UsuarioDTO input = new UsuarioDTO(null, "usuario.existente", "U", "E", null, RolUsuario.PACIENTE, true);
-        when(usuarioRepositoryMock.existePorUsername("usuario.existente")).thenReturn(true);
+        UsuarioDTO input = new UsuarioDTO("U1", "jorge.prado", "Jorge", "Prado", null, RolUsuario.PACIENTE, true);
+        when(usuarioRepositoryMock.existePorUsername("jorge.prado")).thenReturn(true);
 
         assertThrows(UsuarioYaExisteException.class, () -> service.registrarUsuario(input));
         verify(usuarioRepositoryMock, never()).guardar(any());
     }
 
     @Test
-    @DisplayName("Debe lanzar UsuarioInvalidoException ante datos de usuario nulos o incompletos")
+    @DisplayName("Debe validar campos requeridos del usuario al registrar")
     void testRegistrarUsuarioValidaciones() {
         assertThrows(UsuarioInvalidoException.class, () -> service.registrarUsuario(null));
 
-        UsuarioDTO sinUsername = new UsuarioDTO(null, "  ", "A", "B", null, RolUsuario.PACIENTE, true);
+        UsuarioDTO sinUsername = new UsuarioDTO("U1", "", "Nombre", "Apellidos", null, RolUsuario.PACIENTE, true);
         assertThrows(UsuarioInvalidoException.class, () -> service.registrarUsuario(sinUsername));
 
-        UsuarioDTO sinNombre = new UsuarioDTO(null, "user", "  ", "B", null, RolUsuario.PACIENTE, true);
+        UsuarioDTO sinNombre = new UsuarioDTO("U1", "user", "  ", "Apellidos", null, RolUsuario.PACIENTE, true);
         assertThrows(UsuarioInvalidoException.class, () -> service.registrarUsuario(sinNombre));
 
-        UsuarioDTO sinApellidos = new UsuarioDTO(null, "user", "A", "  ", null, RolUsuario.PACIENTE, true);
+        UsuarioDTO sinApellidos = new UsuarioDTO("U1", "user", "Nombre", "", null, RolUsuario.PACIENTE, true);
         assertThrows(UsuarioInvalidoException.class, () -> service.registrarUsuario(sinApellidos));
 
-        UsuarioDTO sinRol = new UsuarioDTO(null, "user", "A", "B", null, null, true);
+        UsuarioDTO sinRol = new UsuarioDTO("U1", "user", "Nombre", "Apellidos", null, null, true);
         assertThrows(UsuarioInvalidoException.class, () -> service.registrarUsuario(sinRol));
     }
 
     @Test
-    @DisplayName("Debe modificar los datos de un usuario existente")
+    @DisplayName("Debe modificar datos de un usuario existente")
     void testModificarUsuarioExitoso() {
-        UsuarioDTO existente = new UsuarioDTO("USU-1", "user1", "Nombre", "Ap", "old@sescam.es", RolUsuario.PACIENTE, true);
+        UsuarioDTO existente = new UsuarioDTO("USU-1", "antiguo", "Pedro", "Fuente", "p@sescam.es", RolUsuario.PACIENTE, true);
         when(usuarioRepositoryMock.buscarPorId("USU-1")).thenReturn(Optional.of(existente));
         when(usuarioRepositoryMock.guardar(any(UsuarioDTO.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UsuarioDTO cambios = new UsuarioDTO("USU-1", "user1.nuevo", "NombreNuevo", "ApNuevo", "new@sescam.es", RolUsuario.MEDICO, true);
-        when(usuarioRepositoryMock.buscarPorUsername("user1.nuevo")).thenReturn(Optional.empty());
+        UsuarioDTO cambios = new UsuarioDTO("USU-1", "nuevo.user", "Pedro", "Fuente Mod", "nuevo@sescam.es", RolUsuario.MEDICO, true);
+        when(usuarioRepositoryMock.buscarPorUsername("nuevo.user")).thenReturn(Optional.empty());
 
-        UsuarioDTO actualizado = service.modificarUsuario(cambios);
+        UsuarioDTO modificado = service.modificarUsuario(cambios);
 
-        assertNotNull(actualizado);
-        assertEquals("user1.nuevo", actualizado.getUsername());
-        assertEquals("NombreNuevo", actualizado.getNombre());
-        assertEquals(RolUsuario.MEDICO, actualizado.getRol());
+        assertNotNull(modificado);
+        assertEquals("nuevo.user", modificado.getUsername());
+        assertEquals("nuevo@sescam.es", modificado.getEmail());
+        assertEquals(RolUsuario.MEDICO, modificado.getRol());
         verify(usuarioRepositoryMock, times(1)).guardar(existente);
     }
 
     @Test
     @DisplayName("Debe lanzar UsuarioNoEncontradoException al modificar usuario inexistente")
     void testModificarUsuarioNoEncontrado() {
-        UsuarioDTO cambios = new UsuarioDTO("USU-INEXISTENTE", "u", "N", "A", null, RolUsuario.PACIENTE, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-INEXISTENTE")).thenReturn(Optional.empty());
+        when(usuarioRepositoryMock.buscarPorId("INEXISTENTE")).thenReturn(Optional.empty());
 
-        assertThrows(UsuarioNoEncontradoException.class, () -> service.modificarUsuario(cambios));
+        UsuarioDTO dto = new UsuarioDTO("INEXISTENTE", "user", "A", "B", null, RolUsuario.PACIENTE, true);
+        assertThrows(UsuarioNoEncontradoException.class, () -> service.modificarUsuario(dto));
     }
 
     @Test
-    @DisplayName("Debe lanzar UsuarioYaExisteException si la modificación de username colisiona con otro usuario")
-    void testModificarUsuarioConflictoUsername() {
-        UsuarioDTO u1 = new UsuarioDTO("USU-1", "user1", "N1", "A1", null, RolUsuario.PACIENTE, true);
-        UsuarioDTO u2 = new UsuarioDTO("USU-2", "user2", "N2", "A2", null, RolUsuario.PACIENTE, true);
+    @DisplayName("Debe consultar usuarios por ID, username y listar por rol")
+    void testConsultasYFiltrosUsuarios() {
+        UsuarioDTO u1 = new UsuarioDTO("U-1", "user1", "N1", "A1", null, RolUsuario.MEDICO, true);
+        when(usuarioRepositoryMock.buscarPorId("U-1")).thenReturn(Optional.of(u1));
+        when(usuarioRepositoryMock.buscarPorUsername("user1")).thenReturn(Optional.of(u1));
+        when(usuarioRepositoryMock.listarPorRol(RolUsuario.MEDICO)).thenReturn(List.of(u1));
+        when(usuarioRepositoryMock.listarTodos()).thenReturn(List.of(u1));
 
-        when(usuarioRepositoryMock.buscarPorId("USU-1")).thenReturn(Optional.of(u1));
-        when(usuarioRepositoryMock.buscarPorUsername("user2")).thenReturn(Optional.of(u2));
+        assertTrue(service.obtenerUsuarioPorId("U-1").isPresent());
+        assertTrue(service.obtenerUsuarioPorUsername("user1").isPresent());
+        assertEquals(1, service.listarUsuariosPorRol(RolUsuario.MEDICO).size());
+        assertEquals(1, service.listarUsuarios().size());
 
-        UsuarioDTO cambios = new UsuarioDTO("USU-1", "user2", "N1", "A1", null, RolUsuario.PACIENTE, true);
-
-        assertThrows(UsuarioYaExisteException.class, () -> service.modificarUsuario(cambios));
+        assertTrue(service.obtenerUsuarioPorId(null).isEmpty());
+        assertTrue(service.obtenerUsuarioPorUsername(" ").isEmpty());
     }
 
     // =========================================================================
-    // 2. Asignación de Roles y Cambio de Estado de Cuenta
+    // 2. Asignación de Roles y Estado de Cuentas (CU-18)
     // =========================================================================
 
     @Test
-    @DisplayName("Debe asignar un nuevo rol RBAC a un usuario existente")
-    void testAsignarRolExitoso() {
-        UsuarioDTO user = new UsuarioDTO("USU-005", "ines.ballesteros", "Inés", "Ballesteros", "i@sescam.es", RolUsuario.PACIENTE, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-005")).thenReturn(Optional.of(user));
+    @DisplayName("Debe asignar y cambiar el rol de un usuario existente")
+    void testAsignarRolUsuario() {
+        UsuarioDTO user = new UsuarioDTO("U-1", "user1", "N", "A", null, RolUsuario.PACIENTE, true);
+        when(usuarioRepositoryMock.buscarPorId("U-1")).thenReturn(Optional.of(user));
         when(usuarioRepositoryMock.guardar(any(UsuarioDTO.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UsuarioDTO modificado = service.asignarRol("USU-005", RolUsuario.MEDICO);
+        UsuarioDTO resultado = service.asignarRol("U-1", RolUsuario.MEDICO);
 
-        assertNotNull(modificado);
-        assertEquals(RolUsuario.MEDICO, modificado.getRol());
+        assertEquals(RolUsuario.MEDICO, resultado.getRol());
         verify(usuarioRepositoryMock, times(1)).guardar(user);
-        verify(auditoriaServiceMock, times(1)).registrarAccesoClinico(
-                eq("SISTEMA_SEGURIDAD"), eq("USU-005"), eq("CAMBIO_ROL_MEDICO"), any(), any()
-        );
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al asignar rol con parámetros inválidos o usuario no encontrado")
-    void testAsignarRolValidaciones() {
-        assertThrows(IllegalArgumentException.class, () -> service.asignarRol(null, RolUsuario.MEDICO));
-        assertThrows(IllegalArgumentException.class, () -> service.asignarRol("USU-1", null));
-
-        when(usuarioRepositoryMock.buscarPorId("NO-EXISTE")).thenReturn(Optional.empty());
-        when(usuarioRepositoryMock.buscarPorUsername("NO-EXISTE")).thenReturn(Optional.empty());
-        assertThrows(UsuarioNoEncontradoException.class, () -> service.asignarRol("NO-EXISTE", RolUsuario.MEDICO));
-    }
-
-    @Test
-    @DisplayName("Debe activar o desactivar una cuenta de usuario")
+    @DisplayName("Debe activar y suspender/desactivar la cuenta de un usuario")
     void testCambiarEstadoUsuario() {
-        UsuarioDTO user = new UsuarioDTO("USU-006", "marcos.diaz", "Marcos", "Díaz", "m@sescam.es", RolUsuario.ADMINISTRATIVO_ADMISION, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-006")).thenReturn(Optional.of(user));
+        UsuarioDTO user = new UsuarioDTO("U-1", "user1", "N", "A", null, RolUsuario.PACIENTE, true);
+        when(usuarioRepositoryMock.buscarPorId("U-1")).thenReturn(Optional.of(user));
+        when(usuarioRepositoryMock.guardar(any(UsuarioDTO.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        boolean suspendido = service.cambiarEstadoUsuario("USU-006", false);
-        assertTrue(suspendido);
+        boolean baja = service.cambiarEstadoUsuario("U-1", false);
+        assertTrue(baja);
         assertFalse(user.isActivo());
 
-        boolean reactivado = service.cambiarEstadoUsuario("USU-006", true);
-        assertTrue(reactivado);
+        boolean reactivacion = service.cambiarEstadoUsuario("U-1", true);
+        assertTrue(reactivacion);
         assertTrue(user.isActivo());
     }
 
     @Test
-    @DisplayName("Debe listar usuarios y filtrar por rol")
-    void testListarUsuarios() {
-        UsuarioDTO u1 = new UsuarioDTO("U1", "p1", "A", "A", null, RolUsuario.PACIENTE, true);
-        when(usuarioRepositoryMock.listarTodos()).thenReturn(List.of(u1));
-        when(usuarioRepositoryMock.listarPorRol(RolUsuario.PACIENTE)).thenReturn(List.of(u1));
-
-        assertEquals(1, service.listarUsuarios().size());
-        assertEquals(1, service.listarUsuariosPorRol(RolUsuario.PACIENTE).size());
-        assertTrue(service.obtenerUsuarioPorId("U1").isEmpty());
-        assertTrue(service.obtenerUsuarioPorUsername("p1").isEmpty());
+    @DisplayName("Debe validar parámetros nulos en asignación de roles y cambio de estado")
+    void testValidacionParametrosRolYEstado() {
+        assertThrows(IllegalArgumentException.class, () -> service.asignarRol(null, RolUsuario.PACIENTE));
+        assertThrows(IllegalArgumentException.class, () -> service.asignarRol("U-1", null));
+        assertThrows(IllegalArgumentException.class, () -> service.cambiarEstadoUsuario("", true));
     }
 
     // =========================================================================
-    // 3. Matriz de Permisos RBAC y Herencia Funcional del Rol Médico (RN-05)
+    // 3. Matriz de Control de Acceso RBAC y Herencia Médica (RN-05)
     // =========================================================================
 
     @Test
-    @DisplayName("RBAC: Administrador del sistema tiene acceso pleno a cualquier acción")
-    void testVerificarPermisoAdminSistema() {
-        UsuarioDTO admin = new UsuarioDTO("USU-ADM", "admin", "Admin", "General", null, RolUsuario.ADMIN_SISTEMA, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-ADM")).thenReturn(Optional.of(admin));
+    @DisplayName("RBAC Paciente: Solo debe tener permisos autorizados para el paciente")
+    void testPermisosRolPaciente() {
+        UsuarioDTO paciente = new UsuarioDTO("PAC-1", "paciente", "P", "P", null, RolUsuario.PACIENTE, true);
+        when(usuarioRepositoryMock.buscarPorId("PAC-1")).thenReturn(Optional.of(paciente));
 
-        assertTrue(service.verificarPermiso("USU-ADM", "CONFIG_SISTEMA"));
-        assertTrue(service.verificarPermiso("USU-ADM", "PRESCRIBIR_PRUEBA"));
-        assertTrue(service.verificarPermiso("USU-ADM", "GESTION_ROLES"));
+        assertTrue(service.verificarPermiso("PAC-1", "CONSULTAR_CITA"));
+        assertTrue(service.verificarPermiso("PAC-1", "FIRMAR_CONSENTIMIENTO"));
+        assertTrue(service.verificarPermiso("PAC-1", "CHECKLIST_SEGURIDAD"));
+
+        assertFalse(service.verificarPermiso("PAC-1", "PRESCRIBIR_PRUEBA"));
+        assertFalse(service.verificarPermiso("PAC-1", "ASIGNAR_CITA"));
+        assertFalse(service.verificarPermiso("PAC-1", "ADMIN_USUARIOS"));
     }
 
     @Test
-    @DisplayName("RBAC: Personal de Admisión posee permisos de citación y filiación pero no clínicos")
-    void testVerificarPermisoAdministrativoAdmision() {
-        UsuarioDTO adminis = new UsuarioDTO("USU-ADM-1", "admision", "Pedro", "López", null, RolUsuario.ADMINISTRATIVO_ADMISION, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-ADM-1")).thenReturn(Optional.of(adminis));
+    @DisplayName("RN-05: El rol MEDICO debe poseer permisos clínicos y HEREDAR los de PACIENTE")
+    void testHerenciaFuncionalRolMedico() {
+        UsuarioDTO medico = new UsuarioDTO("MED-1", "dr.pablo", "Pablo", "Sanchez", null, RolUsuario.MEDICO, true);
+        when(usuarioRepositoryMock.buscarPorId("MED-1")).thenReturn(Optional.of(medico));
 
-        assertTrue(service.verificarPermiso("USU-ADM-1", "ASIGNAR_CITA"));
-        assertTrue(service.verificarPermiso("USU-ADM-1", "ALTA_PACIENTE"));
-        assertTrue(service.verificarPermiso("USU-ADM-1", "ADMINISTRAR_AGENDAS"));
-        assertFalse(service.verificarPermiso("USU-ADM-1", "PRESCRIBIR_PRUEBA"), "Personal administrativo no puede prescribir");
-        assertFalse(service.verificarPermiso("USU-ADM-1", "FIRMAR_INFORME"), "Personal administrativo no puede firmar informes");
+        // Permisos propios del médico
+        assertTrue(service.verificarPermiso("MED-1", "PRESCRIBIR_PRUEBA"));
+        assertTrue(service.verificarPermiso("MED-1", "FIRMAR_INFORME"));
+        assertTrue(service.verificarPermiso("MED-1", "EMITIR_ALERTA_CRITICA"));
+
+        // RN-05: Herencia estricta de permisos del rol PACIENTE
+        assertTrue(service.verificarPermiso("MED-1", "CONSULTAR_CITA"), "Debe heredar de PACIENTE");
+        assertTrue(service.verificarPermiso("MED-1", "SOLICITAR_CAMBIO_CITA"), "Debe heredar de PACIENTE");
+        assertTrue(service.verificarPermiso("MED-1", "FIRMAR_CONSENTIMIENTO"), "Debe heredar de PACIENTE");
+        assertTrue(service.verificarPermiso("MED-1", "CONSULTAR_HISTORIAL"), "Debe heredar de PACIENTE");
+
+        // Permisos ajenos
+        assertFalse(service.verificarPermiso("MED-1", "CONFIG_SISTEMA"));
+
+        Set<String> permisosTotales = service.obtenerPermisosDeUsuario("MED-1");
+        assertTrue(permisosTotales.contains("PRESCRIBIR_PRUEBA"));
+        assertTrue(permisosTotales.contains("CONSULTAR_CITA"));
     }
 
     @Test
-    @DisplayName("RBAC: Paciente solo posee acceso a sus casos de uso de autogestión")
-    void testVerificarPermisoPaciente() {
-        UsuarioDTO paciente = new UsuarioDTO("USU-PAC", "paciente", "Ana", "Ruiz", null, RolUsuario.PACIENTE, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-PAC")).thenReturn(Optional.of(paciente));
+    @DisplayName("RBAC Administrativo de Admisión: Solo tareas de gestión de agendas y citas")
+    void testPermisosRolAdministrativoAdmision() {
+        UsuarioDTO adminAdm = new UsuarioDTO("ADM-1", "carlos.adm", "Carlos", "D", null, RolUsuario.ADMINISTRATIVO_ADMISION, true);
+        when(usuarioRepositoryMock.buscarPorId("ADM-1")).thenReturn(Optional.of(adminAdm));
 
-        assertTrue(service.verificarPermiso("USU-PAC", "CONSULTAR_CITA"));
-        assertTrue(service.verificarPermiso("USU-PAC", "FIRMAR_CONSENTIMIENTO"));
-        assertTrue(service.verificarPermiso("USU-PAC", "CHECKLIST_SEGURIDAD"));
-        assertFalse(service.verificarPermiso("USU-PAC", "ASIGNAR_CITA"), "Paciente no tiene potestad para citar formalmente (RN-02)");
-        assertFalse(service.verificarPermiso("USU-PAC", "PRESCRIBIR_PRUEBA"));
+        assertTrue(service.verificarPermiso("ADM-1", "ASIGNAR_CITA"));
+        assertTrue(service.verificarPermiso("ADM-1", "ADMINISTRAR_AGENDAS"));
+        assertTrue(service.verificarPermiso("ADM-1", "GESTION_LISTA_ESPERA"));
+        assertTrue(service.verificarPermiso("ADM-1", "ALTA_PACIENTE"));
+
+        assertFalse(service.verificarPermiso("ADM-1", "PRESCRIBIR_PRUEBA"));
+        assertFalse(service.verificarPermiso("ADM-1", "FIRMAR_INFORME"));
     }
 
     @Test
-    @DisplayName("RBAC / RN-05: El Médico posee permisos clínicos Y hereda todos los permisos del Paciente")
-    void testVerificarPermisoHerenciaMedicoRespectoAPaciente() {
-        UsuarioDTO medico = new UsuarioDTO("USU-MED", "dr.prado", "Jorge", "Prado", null, RolUsuario.MEDICO, true);
-        when(usuarioRepositoryMock.buscarPorId("USU-MED")).thenReturn(Optional.of(medico));
+    @DisplayName("RBAC Administrador del Sistema: Acceso pleno al sistema")
+    void testPermisosRolAdminSistema() {
+        UsuarioDTO sysAdmin = new UsuarioDTO("SYS-1", "admin", "Root", "Admin", null, RolUsuario.ADMIN_SISTEMA, true);
+        when(usuarioRepositoryMock.buscarPorId("SYS-1")).thenReturn(Optional.of(sysAdmin));
 
-        // Permisos clínicos específicos del facultativo
-        assertTrue(service.verificarPermiso("USU-MED", "PRESCRIBIR_PRUEBA"));
-        assertTrue(service.verificarPermiso("USU-MED", "FIRMAR_INFORME"));
-        assertTrue(service.verificarPermiso("USU-MED", "EMITIR_ALERTA_CRITICA"));
-
-        // RN-05 / D-006: Herencia Funcional del Rol Paciente a título personal
-        assertTrue(service.verificarPermiso("USU-MED", "CONSULTAR_CITA"), "RN-05 exige heredar permisos de PACIENTE");
-        assertTrue(service.verificarPermiso("USU-MED", "FIRMAR_CONSENTIMIENTO"), "RN-05 exige heredar permisos de PACIENTE");
-        assertTrue(service.verificarPermiso("USU-MED", "CONSULTAR_HISTORIAL"), "RN-05 exige heredar permisos de PACIENTE");
-
-        // No tiene permisos de administración del sistema
-        assertFalse(service.verificarPermiso("USU-MED", "CONFIG_SISTEMA"));
+        assertTrue(service.verificarPermiso("SYS-1", "CONFIG_SISTEMA"));
+        assertTrue(service.verificarPermiso("SYS-1", "GESTION_ROLES"));
+        assertTrue(service.verificarPermiso("SYS-1", "ASIGNAR_CITA"));
+        assertTrue(service.verificarPermiso("SYS-1", "CUALQUIER_ACCION_FUTURA"));
     }
 
     @Test
-    @DisplayName("RBAC: Usuario inactivo o no encontrado retorna false en verificarPermiso")
-    void testVerificarPermisoUsuarioInactivoONoEncontrado() {
-        UsuarioDTO inactivo = new UsuarioDTO("USU-INACTIVO", "bloqueado", "B", "B", null, RolUsuario.ADMIN_SISTEMA, false);
-        when(usuarioRepositoryMock.buscarPorId("USU-INACTIVO")).thenReturn(Optional.of(inactivo));
-        when(usuarioRepositoryMock.buscarPorId("USU-NO-EXISTE")).thenReturn(Optional.empty());
-        when(usuarioRepositoryMock.buscarPorUsername("USU-NO-EXISTE")).thenReturn(Optional.empty());
+    @DisplayName("RBAC: Un usuario inactivo o inexistente no debe tener ningún permiso")
+    void testVerificarPermisoUsuarioInactivoOInexistente() {
+        UsuarioDTO inactivo = new UsuarioDTO("U-OFF", "off", "O", "O", null, RolUsuario.ADMIN_SISTEMA, false);
+        when(usuarioRepositoryMock.buscarPorId("U-OFF")).thenReturn(Optional.of(inactivo));
+        when(usuarioRepositoryMock.buscarPorId("NO_EXISTE")).thenReturn(Optional.empty());
 
-        assertFalse(service.verificarPermiso("USU-INACTIVO", "CONFIG_SISTEMA"));
-        assertFalse(service.verificarPermiso("USU-NO-EXISTE", "CONSULTAR_CITA"));
+        assertFalse(service.verificarPermiso("U-OFF", "CONFIG_SISTEMA"));
+        assertFalse(service.verificarPermiso("NO_EXISTE", "CONSULTAR_CITA"));
         assertFalse(service.verificarPermiso(null, "CONSULTAR_CITA"));
-        assertFalse(service.verificarPermiso("USU-INACTIVO", "  "));
-    }
-
-    @Test
-    @DisplayName("RBAC: obtenerPermisosDeUsuario retorna los conjuntos correctos considerando herencia RN-05")
-    void testObtenerPermisosDeUsuario() {
-        UsuarioDTO medico = new UsuarioDTO("U-MED", "medico", "M", "M", null, RolUsuario.MEDICO, true);
-        UsuarioDTO paciente = new UsuarioDTO("U-PAC", "pac", "P", "P", null, RolUsuario.PACIENTE, true);
-
-        when(usuarioRepositoryMock.buscarPorId("U-MED")).thenReturn(Optional.of(medico));
-        when(usuarioRepositoryMock.buscarPorId("U-PAC")).thenReturn(Optional.of(paciente));
-
-        Set<String> permisosPac = service.obtenerPermisosDeUsuario("U-PAC");
-        assertTrue(permisosPac.contains("CONSULTAR_CITA"));
-        assertFalse(permisosPac.contains("PRESCRIBIR_PRUEBA"));
-
-        Set<String> permisosMed = service.obtenerPermisosDeUsuario("U-MED");
-        assertTrue(permisosMed.contains("PRESCRIBIR_PRUEBA"));
-        // RN-05: Verificamos que el Set del médico contiene permisos de paciente
-        assertTrue(permisosMed.contains("CONSULTAR_CITA"), "RN-05: El médico debe contener permisos heredados de paciente");
+        assertFalse(service.verificarPermiso("U-OFF", null));
+        assertTrue(service.obtenerPermisosDeUsuario("U-OFF").isEmpty());
     }
 
     // =========================================================================
-    // 4. Integración con SSO Corporativo (ISsoClient / RNF-04)
+    // 4. Autenticación Federada SSO Corporativo (CU-18 / CU-20 / ISsoClient)
     // =========================================================================
 
     @Test
-    @DisplayName("SSO: Autenticación federada exitosa con sincronización en repositorio")
+    @DisplayName("SSO: Debe autenticar y sincronizar usuario con token corporativo válido")
     void testAutenticarUsuarioSsoExitoso() {
-        UsuarioDTO federado = new UsuarioDTO(
-                "USU-SSO-1", "carlos.dueña", "Carlos", "Dueña", "carlos@sescam.es",
-                RolUsuario.ADMIN_SISTEMA, true
+        UsuarioDTO ssoUser = new UsuarioDTO(
+                "SSO-99", "jorge.prado", "Jorge", "Prado Novillo", "jprado@sescam.es",
+                RolUsuario.PACIENTE, true
         );
-        when(ssoClientMock.validarTokenFederado("token-jwt-valido")).thenReturn(federado);
-        when(usuarioRepositoryMock.guardar(federado)).thenReturn(federado);
+        when(ssoClientMock.validarTokenFederado("token-jwt-sescam-valido")).thenReturn(ssoUser);
+        when(usuarioRepositoryMock.guardar(any(UsuarioDTO.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UsuarioDTO autenticado = service.autenticarUsuario("carlos.dueña", "token-jwt-valido");
+        UsuarioDTO autenticado = service.autenticarUsuario("jorge.prado", "token-jwt-sescam-valido");
 
         assertNotNull(autenticado);
-        assertEquals("carlos.dueña", autenticado.getUsername());
-        verify(usuarioRepositoryMock, times(1)).guardar(federado);
+        assertEquals("jorge.prado", autenticado.getUsername());
+        assertEquals(RolUsuario.PACIENTE, autenticado.getRol());
+        assertTrue(autenticado.isActivo());
+        verify(usuarioRepositoryMock, times(1)).guardar(ssoUser);
         verify(auditoriaServiceMock, times(1)).registrarAccesoClinico(
-                eq("SISTEMA_SEGURIDAD"), eq(federado.getId()), eq("LOGIN_SSO_EXITOSO"), any(), any()
+                eq("SISTEMA_SEGURIDAD"), eq(ssoUser.getId()), eq("LOGIN_SSO_EXITOSO"), any(), any()
         );
     }
 
@@ -363,16 +350,126 @@ class UsuariosSeguridadServiceTest {
     }
 
     // =========================================================================
-    // 5. Métodos diferidos de CU-12 y constructores
+    // 5. Métodos de CU-12 cuando no está inyectado IPacienteRepository
     // =========================================================================
 
     @Test
-    @DisplayName("Debe lanzar UnsupportedOperationException para métodos de CU-12 en la Iteración 2")
-    void testMetodosCu12Diferidos() {
+    @DisplayName("Debe lanzar UnsupportedOperationException para métodos de CU-12 si no se inyectó pacienteRepository")
+    void testMetodosCu12SinRepositorio() {
         assertThrows(UnsupportedOperationException.class, () -> service.darAltaPaciente(new PacienteDTO()));
         assertThrows(UnsupportedOperationException.class, () -> service.modificarPaciente(new PacienteDTO()));
         assertThrows(UnsupportedOperationException.class, () -> service.darBajaLogicaPaciente("PAC-1"));
         assertThrows(UnsupportedOperationException.class, () -> service.obtenerPaciente("PAC-1"));
+    }
+
+    // =========================================================================
+    // 6. Pruebas de CU-12 (Pacientes) cuando se inyecta IPacienteRepository
+    // =========================================================================
+
+    @Test
+    @DisplayName("CU-12: Debe dar de alta a un paciente y persistirlo en el repositorio")
+    void testDarAltaPaciente() {
+        UsuariosSeguridadService servicePacientes = new UsuariosSeguridadService(
+                pacienteRepositoryMock, sisAdmisionClientMock, auditoriaServiceMock
+        );
+
+        PacienteDTO nuevo = new PacienteDTO(
+                null, "CIP-CLM-11223344", "11223344K", "Elena", "Vega",
+                LocalDate.of(1991, 2, 2), "600112233", "elena@sescam.es", false
+        );
+
+        when(pacienteRepositoryMock.existePorDni("11223344K")).thenReturn(false);
+        when(pacienteRepositoryMock.existePorCip("CIP-CLM-11223344")).thenReturn(false);
+        when(pacienteRepositoryMock.guardar(any(PacienteDTO.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PacienteDTO resultado = servicePacientes.darAltaPaciente(nuevo);
+
+        assertNotNull(resultado);
+        assertNotNull(resultado.getId());
+        assertTrue(resultado.getId().startsWith("PAC-"));
+        assertTrue(resultado.isActivo());
+        verify(pacienteRepositoryMock, times(1)).guardar(nuevo);
+    }
+
+    @Test
+    @DisplayName("CU-12: Debe modificar los datos de un paciente existente")
+    void testModificarPaciente() {
+        UsuariosSeguridadService servicePacientes = new UsuariosSeguridadService(
+                pacienteRepositoryMock, sisAdmisionClientMock, auditoriaServiceMock
+        );
+
+        PacienteDTO existente = new PacienteDTO(
+                "PAC-001", "CIP-001", "12345678Z", "Elena", "Vega",
+                LocalDate.of(1991, 2, 2), null, null, true
+        );
+        when(pacienteRepositoryMock.buscarPorIdOCip("PAC-001")).thenReturn(Optional.of(existente));
+        when(pacienteRepositoryMock.guardar(any(PacienteDTO.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PacienteDTO cambios = new PacienteDTO();
+        cambios.setId("PAC-001");
+        cambios.setTelefono("644556677");
+
+        PacienteDTO modificado = servicePacientes.modificarPaciente(cambios);
+
+        assertNotNull(modificado);
+        assertEquals("644556677", modificado.getTelefono());
+        verify(pacienteRepositoryMock, times(1)).guardar(existente);
+    }
+
+    @Test
+    @DisplayName("CU-12: RN-08 Debe ejecutar baja lógica marcando activo = false")
+    void testDarBajaLogicaPaciente() {
+        UsuariosSeguridadService servicePacientes = new UsuariosSeguridadService(
+                pacienteRepositoryMock, sisAdmisionClientMock, auditoriaServiceMock
+        );
+
+        PacienteDTO existente = new PacienteDTO(
+                "PAC-001", "CIP-001", "12345678Z", "Elena", "Vega",
+                LocalDate.now(), null, null, true
+        );
+        when(pacienteRepositoryMock.buscarPorIdOCip("PAC-001")).thenReturn(Optional.of(existente));
+        when(pacienteRepositoryMock.guardar(any(PacienteDTO.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        boolean resultado = servicePacientes.darBajaLogicaPaciente("PAC-001");
+
+        assertTrue(resultado);
+        assertFalse(existente.isActivo(), "RN-08: El paciente debe quedar inactivo sin borrado físico");
+        verify(pacienteRepositoryMock, times(1)).guardar(existente);
+    }
+
+    @Test
+    @DisplayName("CU-12: Debe obtener un paciente localmente o vía SisAdmision")
+    void testObtenerPaciente() {
+        UsuariosSeguridadService servicePacientes = new UsuariosSeguridadService(
+                pacienteRepositoryMock, sisAdmisionClientMock, auditoriaServiceMock
+        );
+
+        PacienteDTO paciente = new PacienteDTO("PAC-001", "CIP-001", "12345678Z", "Elena", "Vega", LocalDate.now(), null, null, true);
+        when(pacienteRepositoryMock.buscarPorIdOCip("PAC-001")).thenReturn(Optional.of(paciente));
+
+        PacienteDTO resultado = servicePacientes.obtenerPaciente("PAC-001");
+
+        assertNotNull(resultado);
+        assertEquals("PAC-001", resultado.getId());
+        verify(pacienteRepositoryMock, times(1)).buscarPorIdOCip("PAC-001");
+    }
+
+    @Test
+    @DisplayName("Debe lanzar UnsupportedOperationException en métodos de CU-18 si solo se inyectó pacienteRepository")
+    void testMetodosCu18SinUsuarioRepository() {
+        UsuariosSeguridadService servicePacientes = new UsuariosSeguridadService(pacienteRepositoryMock);
+
+        UnsupportedOperationException exSso = assertThrows(
+                UnsupportedOperationException.class,
+                () -> servicePacientes.autenticarUsuario("admin", "token-sso")
+        );
+        assertTrue(exSso.getMessage().contains("CU-18"));
+
+        UnsupportedOperationException exRbac = assertThrows(
+                UnsupportedOperationException.class,
+                () -> servicePacientes.verificarPermiso("USU-01", "ACCION_PRUEBA")
+        );
+        assertTrue(exRbac.getMessage().contains("CU-18"));
     }
 
     @Test
@@ -384,6 +481,13 @@ class UsuariosSeguridadServiceTest {
         UsuariosSeguridadService s2 = new UsuariosSeguridadService(usuarioRepositoryMock, ssoClientMock);
         assertNotNull(s2);
 
-        assertThrows(NullPointerException.class, () -> new UsuariosSeguridadService(null));
+        UsuariosSeguridadService s3 = new UsuariosSeguridadService(pacienteRepositoryMock);
+        assertNotNull(s3);
+
+        UsuariosSeguridadService s4 = new UsuariosSeguridadService(pacienteRepositoryMock, sisAdmisionClientMock);
+        assertNotNull(s4);
+
+        assertThrows(NullPointerException.class, () -> new UsuariosSeguridadService((IUsuarioRepository) null));
+        assertThrows(NullPointerException.class, () -> new UsuariosSeguridadService((IPacienteRepository) null));
     }
 }

@@ -5,7 +5,9 @@ import es.uclm.esi.iso2.sescam.common.dto.UsuarioDTO;
 import es.uclm.esi.iso2.sescam.common.enums.RolUsuario;
 import es.uclm.esi.iso2.sescam.common.interfaces.IAuditoriaService;
 import es.uclm.esi.iso2.sescam.common.interfaces.IUsuariosSeguridadService;
+import es.uclm.esi.iso2.sescam.common.ports.ISisAdmisionClient;
 import es.uclm.esi.iso2.sescam.common.ports.ISsoClient;
+import es.uclm.esi.iso2.sescam.usuarios.persistencia.IPacienteRepository;
 import es.uclm.esi.iso2.sescam.usuarios.persistencia.IUsuarioRepository;
 
 import java.util.Collections;
@@ -20,8 +22,9 @@ import java.util.UUID;
  * Implementación principal del contrato transversal {@link IUsuariosSeguridadService} para el Módulo 5.
  * Diseñado bajo la metodología Spec-Driven Development (SDD) y el Proceso Unificado de Desarrollo (PUD):
  * - Iteración 2 (v0.2.0): CU-18 (Gestionar roles y permisos de usuarios bajo modelo RBAC).
+ * - Iteración 3: CU-12 (Gestionar alta, modificación y baja lógica de pacientes, RN-08).
+ * - Iteración 21: CU-20 (Autenticación federada SSO corporativo, ISsoClient / RNF-04).
  * - Cumplimiento estricto de RN-05: Herencia funcional del rol Médico respecto a Paciente.
- * - Integración federada de identidad con el SSO Corporativo del SESCAM (ISsoClient / RNF-04).
  * - Arquitectura desacoplada basada 100% en interfaces (RNF-09).
  */
 public class UsuariosSeguridadService implements IUsuariosSeguridadService {
@@ -80,6 +83,29 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
     private final IUsuarioRepository usuarioRepository;
     private final ISsoClient ssoClient;
     private final IAuditoriaService auditoriaService;
+    private final PacienteService pacienteService;
+
+    // =========================================================================
+    // Constructores sobrecargados (CU-12 / CU-18)
+    // =========================================================================
+
+    public UsuariosSeguridadService(IPacienteRepository pacienteRepository) {
+        this(pacienteRepository, null, null);
+    }
+
+    public UsuariosSeguridadService(IPacienteRepository pacienteRepository, ISisAdmisionClient sisAdmisionClient) {
+        this(pacienteRepository, sisAdmisionClient, null);
+    }
+
+    public UsuariosSeguridadService(IPacienteRepository pacienteRepository,
+                                    ISisAdmisionClient sisAdmisionClient,
+                                    IAuditoriaService auditoriaService) {
+        Objects.requireNonNull(pacienteRepository, "El repositorio de pacientes no puede ser nulo");
+        this.pacienteService = new PacienteService(pacienteRepository, sisAdmisionClient, auditoriaService);
+        this.usuarioRepository = null;
+        this.ssoClient = null;
+        this.auditoriaService = auditoriaService;
+    }
 
     public UsuariosSeguridadService(IUsuarioRepository usuarioRepository) {
         this(usuarioRepository, null, null);
@@ -95,20 +121,78 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
         this.usuarioRepository = Objects.requireNonNull(usuarioRepository, "El repositorio de usuarios no puede ser nulo");
         this.ssoClient = ssoClient;
         this.auditoriaService = auditoriaService;
+        this.pacienteService = null;
+    }
+
+    public UsuariosSeguridadService(IUsuarioRepository usuarioRepository,
+                                    IPacienteRepository pacienteRepository,
+                                    ISsoClient ssoClient,
+                                    ISisAdmisionClient sisAdmisionClient,
+                                    IAuditoriaService auditoriaService) {
+        this.usuarioRepository = usuarioRepository;
+        this.ssoClient = ssoClient;
+        this.auditoriaService = auditoriaService;
+        this.pacienteService = (pacienteRepository != null)
+                ? new PacienteService(pacienteRepository, sisAdmisionClient, auditoriaService)
+                : null;
+    }
+
+    // =========================================================================
+    // CU-12: Gestionar alta, modificación y baja lógica de pacientes (RN-08)
+    // =========================================================================
+
+    @Override
+    public PacienteDTO darAltaPaciente(PacienteDTO paciente) {
+        if (pacienteService != null) {
+            return pacienteService.darAltaPaciente(paciente);
+        }
+        throw new UnsupportedOperationException(
+                "El caso de uso CU-12 (Gestión de Pacientes) no está configurado sin un repositorio de pacientes.");
+    }
+
+    @Override
+    public PacienteDTO modificarPaciente(PacienteDTO paciente) {
+        if (pacienteService != null) {
+            return pacienteService.modificarPaciente(paciente);
+        }
+        throw new UnsupportedOperationException(
+                "El caso de uso CU-12 (Gestión de Pacientes) no está configurado sin un repositorio de pacientes.");
+    }
+
+    @Override
+    public boolean darBajaLogicaPaciente(String pacienteId) {
+        if (pacienteService != null) {
+            return pacienteService.darBajaLogicaPaciente(pacienteId);
+        }
+        throw new UnsupportedOperationException(
+                "El caso de uso CU-12 (Gestión de Pacientes) no está configurado sin un repositorio de pacientes.");
+    }
+
+    @Override
+    public PacienteDTO obtenerPaciente(String pacienteId) {
+        if (pacienteService != null) {
+            return pacienteService.obtenerPaciente(pacienteId);
+        }
+        throw new UnsupportedOperationException(
+                "El caso de uso CU-12 (Gestión de Pacientes) no está configurado sin un repositorio de pacientes.");
+    }
+
+    public List<PacienteDTO> listarPacientes(boolean soloActivos) {
+        if (pacienteService != null) {
+            return pacienteService.listarPacientes(soloActivos);
+        }
+        return Collections.emptyList();
     }
 
     // =========================================================================
     // CU-18: Gestión de cuentas de usuario y asignación de roles
     // =========================================================================
 
-    /**
-     * Da de alta a un nuevo usuario en el sistema con su rol correspondiente.
-     *
-     * @param usuario DTO con los datos del usuario a registrar.
-     * @return El usuario registrado y persistido.
-     */
     public UsuarioDTO registrarUsuario(UsuarioDTO usuario) {
         validarDatosUsuario(usuario);
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException("El caso de uso CU-18 requiere la configuración de IUsuarioRepository.");
+        }
 
         String usernameLimpio = usuario.getUsername().trim().toLowerCase();
         if (usuarioRepository.existePorUsername(usernameLimpio)) {
@@ -132,18 +216,15 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
         return guardado;
     }
 
-    /**
-     * Modifica los datos demográficos o de contacto de un usuario existente.
-     *
-     * @param usuario DTO con los datos actualizados.
-     * @return UsuarioDTO actualizado.
-     */
     public UsuarioDTO modificarUsuario(UsuarioDTO usuario) {
         if (usuario == null) {
             throw new UsuarioInvalidoException("El usuario a modificar no puede ser nulo");
         }
         if (usuario.getId() == null || usuario.getId().trim().isEmpty()) {
             throw new UsuarioInvalidoException("El ID de usuario es obligatorio para su modificación");
+        }
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException("El caso de uso CU-18 requiere la configuración de IUsuarioRepository.");
         }
 
         UsuarioDTO existente = usuarioRepository.buscarPorId(usuario.getId().trim())
@@ -185,19 +266,15 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
         return actualizado;
     }
 
-    /**
-     * Asigna o modifica el rol RBAC de un usuario existente.
-     *
-     * @param usuarioId Identificador o username del usuario.
-     * @param nuevoRol  Nuevo rol a asignar (PACIENTE, MEDICO, ADMINISTRATIVO_ADMISION, ADMIN_SISTEMA).
-     * @return UsuarioDTO con el rol actualizado.
-     */
     public UsuarioDTO asignarRol(String usuarioId, RolUsuario nuevoRol) {
         if (usuarioId == null || usuarioId.trim().isEmpty()) {
             throw new IllegalArgumentException("El identificador del usuario no puede ser nulo o vacío");
         }
         if (nuevoRol == null) {
             throw new IllegalArgumentException("El rol a asignar no puede ser nulo");
+        }
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException("El caso de uso CU-18 requiere la configuración de IUsuarioRepository.");
         }
 
         UsuarioDTO usuario = buscarUsuarioPorIdOUsername(usuarioId.trim())
@@ -209,16 +286,12 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
         return guardado;
     }
 
-    /**
-     * Activa o desactiva la cuenta de un usuario en el sistema.
-     *
-     * @param usuarioId Identificador del usuario.
-     * @param activo    true para habilitar la cuenta, false para suspenderla.
-     * @return true si la operación se completó exitosamente.
-     */
     public boolean cambiarEstadoUsuario(String usuarioId, boolean activo) {
         if (usuarioId == null || usuarioId.trim().isEmpty()) {
             throw new IllegalArgumentException("El identificador del usuario no puede ser nulo o vacío");
+        }
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException("El caso de uso CU-18 requiere la configuración de IUsuarioRepository.");
         }
 
         UsuarioDTO usuario = buscarUsuarioPorIdOUsername(usuarioId.trim())
@@ -231,36 +304,35 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
     }
 
     public Optional<UsuarioDTO> obtenerUsuarioPorId(String id) {
-        if (id == null || id.trim().isEmpty()) {
+        if (id == null || id.trim().isEmpty() || usuarioRepository == null) {
             return Optional.empty();
         }
         return usuarioRepository.buscarPorId(id.trim());
     }
 
     public Optional<UsuarioDTO> obtenerUsuarioPorUsername(String username) {
-        if (username == null || username.trim().isEmpty()) {
+        if (username == null || username.trim().isEmpty() || usuarioRepository == null) {
             return Optional.empty();
         }
         return usuarioRepository.buscarPorUsername(username.trim());
     }
 
     public List<UsuarioDTO> listarUsuarios() {
+        if (usuarioRepository == null) {
+            return Collections.emptyList();
+        }
         return usuarioRepository.listarTodos();
     }
 
     public List<UsuarioDTO> listarUsuariosPorRol(RolUsuario rol) {
+        if (usuarioRepository == null) {
+            return Collections.emptyList();
+        }
         return usuarioRepository.listarPorRol(rol);
     }
 
-    /**
-     * Retorna el conjunto completo de permisos reconocidos para un usuario concreto,
-     * calculando la herencia funcional del rol Médico respecto a Paciente (RN-05).
-     *
-     * @param usuarioId Identificador o username del usuario.
-     * @return Conjunto inmutable de códigos de permisos autorizados.
-     */
     public Set<String> obtenerPermisosDeUsuario(String usuarioId) {
-        if (usuarioId == null || usuarioId.trim().isEmpty()) {
+        if (usuarioId == null || usuarioId.trim().isEmpty() || usuarioRepository == null) {
             return Collections.emptySet();
         }
 
@@ -288,7 +360,6 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
                 return PERMISOS_PACIENTE;
 
             case MEDICO:
-                // Regla de Negocio RN-05: El médico hereda la totalidad de permisos del rol Paciente
                 Set<String> permisosMedico = new HashSet<>(PERMISOS_MEDICO_ESPECIFICOS);
                 permisosMedico.addAll(PERMISOS_PACIENTE);
                 return Collections.unmodifiableSet(permisosMedico);
@@ -304,6 +375,10 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
 
     @Override
     public boolean verificarPermiso(String usuarioId, String accionRequerida) {
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException(
+                    "El caso de uso CU-18 (Control de acceso RBAC y herencia médica RN-05) requiere la configuración de IUsuarioRepository.");
+        }
         if (usuarioId == null || usuarioId.trim().isEmpty() || accionRequerida == null || accionRequerida.trim().isEmpty()) {
             return false;
         }
@@ -324,7 +399,6 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
 
         switch (rol) {
             case ADMIN_SISTEMA:
-                // Administrador del sistema tiene acceso pleno
                 autorizado = true;
                 break;
 
@@ -337,8 +411,6 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
                 break;
 
             case MEDICO:
-                // Regla de Negocio RN-05 (Herencia Funcional): El médico posee sus capacidades clínicas
-                // Y hereda automáticamente todos los casos de uso y permisos del rol PACIENTE a título personal.
                 autorizado = PERMISOS_MEDICO_ESPECIFICOS.contains(accionLimpia)
                         || PERMISOS_PACIENTE.contains(accionLimpia);
                 break;
@@ -358,6 +430,10 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
 
     @Override
     public UsuarioDTO autenticarUsuario(String username, String tokenSso) {
+        if (usuarioRepository == null) {
+            throw new UnsupportedOperationException(
+                    "El caso de uso CU-18 / CU-20 (Autenticación federada SSO) requiere la configuración de IUsuarioRepository.");
+        }
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre de usuario es obligatorio para la autenticación");
         }
@@ -386,7 +462,7 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
         }
 
         if (federado.getRol() == null) {
-            federado.setRol(RolUsuario.PACIENTE); // Asignación de rol por defecto si SSO no lo especifica
+            federado.setRol(RolUsuario.PACIENTE);
         }
 
         usuarioRepository.guardar(federado);
@@ -395,38 +471,13 @@ public class UsuariosSeguridadService implements IUsuariosSeguridadService {
     }
 
     // =========================================================================
-    // Métodos diferidos del contrato transversal (planificados para la Iteración 3)
-    // =========================================================================
-
-    @Override
-    public PacienteDTO darAltaPaciente(PacienteDTO paciente) {
-        throw new UnsupportedOperationException(
-                "El caso de uso CU-12 (Gestión de Pacientes) está planificado para su desarrollo en la Iteración 3.");
-    }
-
-    @Override
-    public PacienteDTO modificarPaciente(PacienteDTO paciente) {
-        throw new UnsupportedOperationException(
-                "El caso de uso CU-12 (Gestión de Pacientes) está planificado para su desarrollo en la Iteración 3.");
-    }
-
-    @Override
-    public boolean darBajaLogicaPaciente(String pacienteId) {
-        throw new UnsupportedOperationException(
-                "El caso de uso CU-12 (Gestión de Pacientes) está planificado para su desarrollo en la Iteración 3.");
-    }
-
-    @Override
-    public PacienteDTO obtenerPaciente(String pacienteId) {
-        throw new UnsupportedOperationException(
-                "El caso de uso CU-12 (Gestión de Pacientes) está planificado para su desarrollo en la Iteración 3.");
-    }
-
-    // =========================================================================
     // Métodos auxiliares privados
     // =========================================================================
 
     private Optional<UsuarioDTO> buscarUsuarioPorIdOUsername(String idOUsername) {
+        if (usuarioRepository == null) {
+            return Optional.empty();
+        }
         Optional<UsuarioDTO> porId = usuarioRepository.buscarPorId(idOUsername);
         if (porId.isPresent()) {
             return porId;
