@@ -225,11 +225,11 @@ public class AuditoriaService implements IAuditoriaService {
         if (uLower.startsWith("med") || uLower.contains("medico")) {
             return "MEDICO";
         }
-        if (uLower.startsWith("adm") || uLower.contains("admin")) {
-            return "ADMIN_SISTEMA";
-        }
-        if (uLower.startsWith("aux") || uLower.contains("admision")) {
+        if (uLower.contains("admision") || uLower.startsWith("aux")) {
             return "ADMINISTRATIVO_ADMISION";
+        }
+        if (uLower.startsWith("admin") || uLower.contains("sistema") || uLower.startsWith("adm")) {
+            return "ADMIN_SISTEMA";
         }
         if (uLower.startsWith("pac") || uLower.contains("paciente")) {
             return "PACIENTE";
