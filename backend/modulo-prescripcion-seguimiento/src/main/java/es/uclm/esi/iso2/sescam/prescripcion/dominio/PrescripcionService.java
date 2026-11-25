@@ -54,13 +54,14 @@ public class PrescripcionService implements IPrescripcionService {
     @Override
     public List<SolicitudPruebaDTO> listarSolicitudesPorPaciente(String pacienteId) {
         validarTextoObligatorio(pacienteId, "El identificador del paciente es obligatorio");
+        validarPaciente(pacienteId);
         return repositorio.listarPorPaciente(pacienteId).stream()
                 .filter(this::estaActiva)
                 .sorted(Comparator.comparing(Prescripcion::getPrioridad, Comparator.nullsLast(Enum::compareTo))
                         .thenComparing(Prescripcion::getFechaSolicitud, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(Prescripcion::getId))
                 .map(Prescripcion::aDTO)
-                .collect(Collectors.toList());
+                .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
@@ -68,9 +69,10 @@ public class PrescripcionService implements IPrescripcionService {
         validarTextoObligatorio(medicoId, "El identificador del medico es obligatorio");
         return repositorio.listarPorMedico(medicoId).stream()
                 .sorted(Comparator.comparing(Prescripcion::getFechaSolicitud,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Prescripcion::getId))
                 .map(Prescripcion::aDTO)
-                .collect(Collectors.toList());
+                .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
