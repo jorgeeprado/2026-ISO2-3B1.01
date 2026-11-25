@@ -35,10 +35,10 @@ public class PrescripcionService implements IPrescripcionService {
 
     @Override
     public SolicitudPruebaDTO prescribirSeguimientoPeriodico(SolicitudPruebaDTO solicitud, int mesesPeriodicidad) {
-        validarSolicitud(solicitud);
         if (mesesPeriodicidad <= 0) {
             throw new IllegalArgumentException("La periodicidad debe ser un numero de meses positivo");
         }
+        validarSolicitud(solicitud);
         validarPaciente(solicitud.getPacienteId());
         return guardarNuevaPrescripcion(solicitud, true, mesesPeriodicidad);
     }
@@ -89,7 +89,9 @@ public class PrescripcionService implements IPrescripcionService {
         }
         SolicitudPruebaDTO siguiente = original.aDTO();
         siguiente.setId(null);
-        siguiente.setFechaSolicitud(null);
+        siguiente.setFechaSolicitud(original.getFechaSolicitud() == null
+                ? LocalDateTime.now().plusMonths(original.getPeriodicidadMeses())
+                : original.getFechaSolicitud().plusMonths(original.getPeriodicidadMeses()));
         return prescribirSeguimientoPeriodico(siguiente, original.getPeriodicidadMeses());
     }
 

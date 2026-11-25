@@ -195,6 +195,7 @@ class PrescripcionServiceTest {
         assertTrue(siguiente.isEsSeguimientoPeriodico());
         assertEquals(12, siguiente.getPeriodicidadMeses());
         assertEquals(EstadoSolicitud.PENDIENTE_CITACION, siguiente.getEstado());
+        assertEquals(original.getFechaSolicitud().plusMonths(12), siguiente.getFechaSolicitud());
         assertEquals(2, repositorio.listarTodos().size());
         verify(usuariosService).obtenerPaciente("PAC-1");
     }
