@@ -251,3 +251,16 @@
   - Se eliminó el fichero huérfano sin uso `EstadoDetalleSolicitudDTO.java` (0 bytes).
 - **Motivo / Justificación:** Cumplimiento normativo estricto de `RNF-11` (Cliente-Servidor) y `RNF-09` (Desacoplamiento e inversión de dependencias), facilitando despliegues independientes y clientes multicanal (Web, Escritorio, Móvil).
 - **Consecuencias:** Las rutas relativas de los submódulos de negocio cambian a `backend/<submodulo>`. Los paquetes Java internos `es.uclm.esi.iso2.sescam.*` se mantienen intactos, sin ninguna regresión en la lógica de negocio ni en los tests unitarios.
+
+### D-033 · Alerta prioritaria por hallazgo radiológico crítico (CU-24 / RN-06)
+- **Fecha:** 27/11/2026 · **Iteración:** 18 · **Responsable:** Marcos Díaz-Pavón Romero
+- **Contexto:** RN-06 exige que, si el radiólogo marca un hallazgo crítico inesperado, el sistema avise de forma síncrona, prioritaria y multicanal al facultativo prescriptor. El contrato `INotificacionesCalidadService.emitirAlertaHallazgoCritico(medicoPrescriptorId, informeId, detalleAlerta)` ya existía en `modulo-common-interfaces`.
+- **Decisión:**
+  - `NotificacionesCalidadService.emitirAlertaHallazgoCritico` reutiliza el mismo flujo de despacho de CU-02.1 (D-009): persiste la alerta como `PENDIENTE`, la envía por **todos** los canales `ICanalNotificacion` en la misma llamada (síncrona) y registra `ENVIADA`, `PARCIAL` o `FALLIDA`. Tipo `ALERTA_HALLAZGO_CRITICO`, destinatario el prescriptor y `referenciaEntidadId` el informe.
+  - Los tres parámetros son obligatorios; si falta alguno → `IllegalArgumentException`, sin persistir ni despachar. Un detalle de más de 2000 caracteres se recorta con `…` en lugar de rechazarse, para no perder el aviso (la columna `mensaje` admite 4000 y el texto completo está en el informe).
+  - Si algún canal falla se propaga `NotificacionDispatchException`; sin canales configurados, `IllegalStateException`. No se silencia ningún fallo: en una alerta clínica el emisor debe saber que el aviso no llegó completo.
+  - REST: `POST /api/notificaciones/alertas-hallazgo-critico` (201). Errores: 400 datos inválidos, 502 fallo de canal (con `notificacionId` y `estadoEnvio`), 503 sin canales.
+  - No se deduplican alertas: cada invocación es un aviso nuevo y trazable.
+- **Relación `<<extend>>` con CU-09:** CU-24 se dispara desde CU-09 (módulo 3, Jorge Prado). Por RNF-09 el módulo 3 no depende de este módulo, sino del contrato común: al firmar o guardar un informe con `informe.isHallazgoCritico() == true`, `RealizacionInformesService` debe invocar `INotificacionesCalidadService.emitirAlertaHallazgoCritico(informe.getMedicoPrescriptorId(), informe.getId(), informe.getHallazgos())`, inyectado por constructor.
+- **Motivo / Justificación:** Reutilizar el despacho multicanal ya probado de CU-02 mantiene un único punto de trazabilidad de entregas y cumple DIP.
+- **Consecuencias:** El punto de extensión en CU-09 queda pendiente de la implementación de CU-09 (iteración 15), que en `develop` todavía no existe. No hay canales con prioridad distinta: "prioritaria" se materializa en el tipo, el envío inmediato y el uso de todos los canales.

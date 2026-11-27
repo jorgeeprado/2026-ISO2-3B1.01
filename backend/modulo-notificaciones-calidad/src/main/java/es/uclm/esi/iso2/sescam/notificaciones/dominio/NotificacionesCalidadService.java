@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class NotificacionesCalidadService implements INotificacionesCalidadService {
 
+    /** Longitud máxima del detalle en una alerta de CU-24; deja margen en la columna de mensaje (4000). */
+    static final int LONGITUD_MAXIMA_DETALLE = 2000;
+
     private final INotificacionRepository repository;
     private final List<ICanalNotificacion> canales;
     private final Clock clock;
@@ -75,10 +78,37 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
                 informeId);
     }
 
+    /**
+     * CU-24 / RF-24 / RN-06: emite de forma síncrona una alerta prioritaria multicanal al facultativo
+     * prescriptor cuando el radiólogo marca un hallazgo crítico inesperado en un informe.
+     *
+     * <p>Se invoca como extensión ({@code <<extend>>}) de CU-09 cuando {@code informe.isHallazgoCritico()}.
+     * La alerta se persiste antes del despacho y se intenta por todos los canales configurados; si alguno
+     * falla se registra el estado ({@code PARCIAL} o {@code FALLIDA}) y se propaga
+     * {@link NotificacionDispatchException} para que el emisor sepa que el aviso no llegó completo.</p>
+     *
+     * <p>Un detalle de más de {@value #LONGITUD_MAXIMA_DETALLE} caracteres se recorta en vez de rechazarse,
+     * para no perder el aviso; el texto completo se consulta en el informe referenciado.</p>
+     *
+     * @throws IllegalArgumentException si falta algún dato
+     * @throws IllegalStateException si no hay canales de notificación configurados
+     * @throws NotificacionDispatchException si algún canal no entrega la alerta
+     */
     @Override
     public NotificacionDTO emitirAlertaHallazgoCritico(
             String medicoPrescriptorId, String informeId, String detalleAlerta) {
-        throw new UnsupportedOperationException("CU-24 está planificado para una iteración posterior.");
+        validarIdentificador(medicoPrescriptorId, "medicoPrescriptorId");
+        validarIdentificador(informeId, "informeId");
+        validarIdentificador(detalleAlerta, "detalleAlerta");
+        String detalle = recortar(detalleAlerta.strip());
+        return emitir(
+                medicoPrescriptorId,
+                TipoNotificacion.ALERTA_HALLAZGO_CRITICO,
+                "ALERTA PRIORITARIA: hallazgo radiológico crítico",
+                "Se ha detectado un hallazgo crítico inesperado en el informe radiológico " + informeId
+                        + " de un paciente a su cargo. Detalle: " + detalle
+                        + ". Revise el informe y actúe con carácter prioritario.",
+                informeId);
     }
 
     @Override
@@ -154,6 +184,13 @@ public class NotificacionesCalidadService implements INotificacionesCalidadServi
             throw new NotificacionDispatchException(dto.getId(), estado, primerError);
         }
         return copiar(dto);
+    }
+
+    private static String recortar(String detalle) {
+        if (detalle.length() <= LONGITUD_MAXIMA_DETALLE) {
+            return detalle;
+        }
+        return detalle.substring(0, LONGITUD_MAXIMA_DETALLE - 1) + "…";
     }
 
     private static void validarIdentificador(String valor, String nombre) {

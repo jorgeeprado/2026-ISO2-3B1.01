@@ -157,6 +157,11 @@ class SescamBackendGatewayTest {
 
         assertEquals(1, gateway.consultarNotificaciones("U1").size());
         assertEquals("INC-1", gateway.reportarIncidenciaOEncuesta(inc).getId());
+
+        NotificacionDTO alerta = new NotificacionDTO();
+        when(notificacionesService.emitirAlertaHallazgoCritico("M1", "INF-1", "Hemorragia")).thenReturn(alerta);
+
+        assertSame(alerta, gateway.emitirAlertaHallazgoCritico("M1", "INF-1", "Hemorragia"));
     }
 
     @Test
