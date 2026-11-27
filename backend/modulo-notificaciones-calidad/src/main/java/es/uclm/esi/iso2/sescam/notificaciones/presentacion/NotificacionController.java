@@ -7,11 +7,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,6 +34,19 @@ public class NotificacionController {
 
     public NotificacionDTO notificarInformeDisponible(String pacienteId, String informeId) {
         return service.notificarInformeDisponible(pacienteId, informeId);
+    }
+
+    /**
+     * CU-24: alerta prioritaria al prescriptor por hallazgo radiológico crítico (RN-06).
+     */
+    @PostMapping("/alertas-hallazgo-critico")
+    @ResponseStatus(HttpStatus.CREATED)
+    public NotificacionDTO emitirAlertaHallazgoCritico(@RequestBody AlertaHallazgoCriticoRequest peticion) {
+        if (peticion == null) {
+            throw new IllegalArgumentException("La petición de alerta es obligatoria");
+        }
+        return service.emitirAlertaHallazgoCritico(
+                peticion.medicoPrescriptorId(), peticion.informeId(), peticion.detalleAlerta());
     }
 
     public List<NotificacionDTO> consultarNotificaciones(String usuarioId) {

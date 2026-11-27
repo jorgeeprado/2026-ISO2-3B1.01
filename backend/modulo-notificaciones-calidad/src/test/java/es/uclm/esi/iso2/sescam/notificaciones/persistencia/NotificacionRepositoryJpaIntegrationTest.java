@@ -7,8 +7,13 @@ import es.uclm.esi.iso2.sescam.common.dto.FiltroNotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.dto.NotificacionDTO;
 import es.uclm.esi.iso2.sescam.common.enums.TipoNotificacion;
 import es.uclm.esi.iso2.sescam.notificaciones.dominio.EstadoEnvio;
+import es.uclm.esi.iso2.sescam.notificaciones.dominio.ICanalNotificacion;
 import es.uclm.esi.iso2.sescam.notificaciones.dominio.Notificacion;
+import es.uclm.esi.iso2.sescam.notificaciones.dominio.NotificacionesCalidadService;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +64,26 @@ class NotificacionRepositoryJpaIntegrationTest {
         assertTrue(repository.marcarComoLeida(noLeidas.get(0).getNotificacionId()).getDto().isLeida());
         assertEquals(0, repository.buscar(
                 new FiltroNotificacionDTO("paciente-1", false, null, null)).size());
+    }
+
+    @Test
+    void alertaDeHallazgoCriticoSePersisteConElDetalleMaximoYEsConsultable() {
+        NotificacionesCalidadService service = new NotificacionesCalidadService(
+                repository,
+                List.<ICanalNotificacion>of(notificacion -> {}),
+                Clock.fixed(Instant.parse("2026-11-27T10:00:00Z"), ZoneOffset.UTC));
+        String detalle = "x".repeat(2000);
+
+        NotificacionDTO emitida = service.emitirAlertaHallazgoCritico("medico-7", "informe-3", detalle);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<NotificacionDTO> recibidas = service.consultarNotificaciones("medico-7");
+        assertEquals(1, recibidas.size());
+        assertEquals(emitida.getId(), recibidas.get(0).getId());
+        assertEquals(TipoNotificacion.ALERTA_HALLAZGO_CRITICO, recibidas.get(0).getTipo());
+        assertEquals("informe-3", recibidas.get(0).getReferenciaEntidadId());
+        assertTrue(recibidas.get(0).getMensaje().contains(detalle));
     }
 
     private static Notificacion crear(

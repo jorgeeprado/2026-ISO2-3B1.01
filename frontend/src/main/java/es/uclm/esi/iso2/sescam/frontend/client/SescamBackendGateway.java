@@ -102,9 +102,14 @@ public class SescamBackendGateway {
         return realizacionInformesService.firmarConsentimientoInformado(consentimiento);
     }
 
-    // --- Métodos de Notificaciones y Calidad (Módulo 4 / CU-02 / CU-04) ---
+    // --- Métodos de Notificaciones y Calidad (Módulo 4 / CU-02 / CU-04 / CU-24) ---
     public List<NotificacionDTO> consultarNotificaciones(String usuarioId) {
         return notificacionesCalidadService.consultarNotificaciones(usuarioId);
+    }
+
+    public NotificacionDTO emitirAlertaHallazgoCritico(String medicoPrescriptorId, String informeId,
+                                                       String detalleAlerta) {
+        return notificacionesCalidadService.emitirAlertaHallazgoCritico(medicoPrescriptorId, informeId, detalleAlerta);
     }
 
     public IncidenciaDTO reportarIncidenciaOEncuesta(IncidenciaDTO incidencia) {
