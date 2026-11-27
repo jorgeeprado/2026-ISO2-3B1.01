@@ -125,6 +125,7 @@ class PrescripcionServiceTest {
 
     @Test
     void consultarSolicitudValidaElIdentificadorYLaExistencia() {
+        assertThrows(IllegalArgumentException.class, () -> service.consultarSolicitud(null));
         assertThrows(IllegalArgumentException.class, () -> service.consultarSolicitud(" "));
         assertThrows(PrescripcionNoEncontradaException.class, () -> service.consultarSolicitud("NO-EXISTE"));
 
@@ -139,6 +140,8 @@ class PrescripcionServiceTest {
 
     @Test
     void listarSolicitudesPorPacienteFiltraInactivasYOrdenaPorPrioridadYFecha() {
+        when(usuariosService.obtenerPaciente("PAC-1")).thenReturn(new PacienteDTO());
+        when(usuariosService.obtenerPaciente("PAC-SIN-SOLICITUDES")).thenReturn(new PacienteDTO());
         guardar("ORD", "PAC-1", Prioridad.ORDINARIO, EstadoSolicitud.PENDIENTE_CITACION,
                 LocalDateTime.of(2026, 1, 1, 0, 0));
         guardar("PREF-TARDE", "PAC-1", Prioridad.PREFERENTE, EstadoSolicitud.CITADA,
@@ -158,6 +161,15 @@ class PrescripcionServiceTest {
                 resultado.stream().map(SolicitudPruebaDTO::getId).toList());
         assertTrue(service.listarSolicitudesPorPaciente("PAC-SIN-SOLICITUDES").isEmpty());
         assertThrows(IllegalArgumentException.class, () -> service.listarSolicitudesPorPaciente(null));
+    }
+
+    @Test
+    void listarSolicitudesPorPacienteRechazaPacienteInexistente() {
+        when(usuariosService.obtenerPaciente("PAC-DESCONOCIDO")).thenReturn(null);
+
+        assertThrows(PacienteNoEncontradoException.class,
+                () -> service.listarSolicitudesPorPaciente("PAC-DESCONOCIDO"));
+        assertTrue(repositorio.listarTodos().isEmpty());
     }
 
     @Test
